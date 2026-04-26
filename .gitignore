@@ -3,6 +3,7 @@
 /sendmail/sendmail
 /server/ui/dist
 /mailpit*
+/messagepit
 /.idea
 *.old
 *.db
