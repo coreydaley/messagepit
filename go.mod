@@ -1,4 +1,4 @@
-module github.com/axllent/mailpit
+module github.com/coreydaley/messagepit
 
 go 1.25.0
 

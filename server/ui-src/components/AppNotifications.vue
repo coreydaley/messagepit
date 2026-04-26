@@ -2,6 +2,7 @@
 import CommonMixins from "../mixins/CommonMixins";
 import { Toast } from "bootstrap";
 import { mailbox } from "../stores/mailbox";
+import { smsStore } from "../stores/sms";
 import { pagination } from "../stores/pagination";
 
 export default {
@@ -14,6 +15,7 @@ export default {
 		return {
 			pagination,
 			mailbox,
+			smsStore,
 			toastMessage: false,
 			reconnectRefresh: false,
 			socketURI: false,
@@ -111,6 +113,19 @@ export default {
 				} else if (response.Type === "truncate") {
 					// broadcast for components
 					this.eventBus.emit("truncate");
+				} else if (response.Type === "sms" && response.Data) {
+					smsStore.total++;
+					if (!response.Data.Read) {
+						smsStore.unread++;
+					}
+					this.eventBus.emit("sms", response.Data);
+				} else if (response.Type === "sms_delete" && response.Data) {
+					smsStore.total = Math.max(0, smsStore.total - 1);
+					this.eventBus.emit("sms_delete", response.Data);
+				} else if (response.Type === "sms_truncate") {
+					smsStore.total = 0;
+					smsStore.unread = 0;
+					this.eventBus.emit("sms_truncate");
 				} else if (response.Type === "error") {
 					// broadcast for components
 					this.addClientError(response.Data);
@@ -119,6 +134,7 @@ export default {
 
 			ws.onopen = () => {
 				mailbox.connected = true;
+				smsStore.connected = true;
 				this.socketLastConnection = Date.now();
 				if (this.reconnectRefresh) {
 					this.reconnectRefresh = false;
@@ -131,7 +147,7 @@ export default {
 
 			ws.onclose = () => {
 				if (this.socketLastConnection === 0) {
-					// connection failed immediately after connecting to Mailpit implies proxy websockets aren't configured
+					// connection failed immediately after connecting to MessagePit implies proxy websockets aren't configured
 					console.log("Unable to connect to websocket, disabling websocket support");
 					return;
 				}
@@ -143,6 +159,7 @@ export default {
 
 				// set disconnected state
 				mailbox.connected = false;
+				smsStore.connected = false;
 
 				if (this.socketBreaks > 3) {
 					// give up after > 3 successful socket connections & disconnections within a 15 second window,

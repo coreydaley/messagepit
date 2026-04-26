@@ -63,7 +63,7 @@ export default {
 
 <template>
 	<template v-if="!modals">
-		<div class="bg-body ms-sm-n1 me-sm-n1 py-2 text-muted small about-mailpit">
+		<div class="bg-body ms-sm-n1 me-sm-n1 py-2 text-muted small about-messagepit">
 			<button class="text-muted btn btn-sm" @click="loadInfo()">
 				<i class="bi bi-info-circle-fill me-1"></i>
 				About
@@ -73,7 +73,7 @@ export default {
 				class="btn btn-sm btn-outline-secondary float-end"
 				data-bs-toggle="modal"
 				data-bs-target="#SettingsModal"
-				title="Mailpit UI settings"
+				title="MessagePit UI settings"
 			>
 				<i class="bi bi-gear-fill"></i>
 			</button>
@@ -103,7 +103,7 @@ export default {
 				<div v-if="mailbox.appInfo.RuntimeStats" class="modal-content">
 					<div class="modal-header">
 						<h5 id="AppInfoModalLabel" class="modal-title">
-							Mailpit
+							MessagePit
 							<code>({{ mailbox.appInfo.Version }})</code>
 							<span v-if="isEdgeBuild" class="badge bg-info text-dark ms-2">edge build</span>
 						</h5>
@@ -128,11 +128,11 @@ export default {
 											<a
 												class="btn btn-warning d-block mb-3"
 												:href="
-													'https://github.com/axllent/mailpit/releases/tag/' +
+													'https://github.com/coreydaley/messagepit/releases/tag/' +
 													mailbox.appInfo.LatestVersion
 												"
 											>
-												A new version of Mailpit ({{ mailbox.appInfo.LatestVersion }}) is
+												A new version of MessagePit ({{ mailbox.appInfo.LatestVersion }}) is
 												available.
 											</a>
 										</div>
@@ -148,7 +148,7 @@ export default {
 									<div class="col-sm-6">
 										<a
 											class="btn btn-primary w-100"
-											href="https://github.com/axllent/mailpit"
+											href="https://github.com/coreydaley/messagepit"
 											target="_blank"
 										>
 											<i class="bi bi-github"></i>
@@ -158,7 +158,7 @@ export default {
 									<div class="col-sm-6">
 										<a
 											class="btn btn-primary w-100"
-											href="https://mailpit.axllent.org/docs/"
+											href="https://github.com/coreydaley/messagepit#readme"
 											target="_blank"
 										>
 											Documentation
@@ -198,7 +198,7 @@ export default {
 										<table class="table table-sm table-borderless mb-0">
 											<tbody>
 												<tr>
-													<td>Mailpit up since</td>
+													<td>MessagePit up since</td>
 													<td>
 														{{ secondsToRelative(mailbox.appInfo.RuntimeStats.Uptime) }}
 													</td>
@@ -241,7 +241,12 @@ export default {
 							</div>
 						</div>
 					</div>
-					<div class="modal-footer">
+					<div class="modal-footer d-flex align-items-center">
+						<p class="text-muted small mb-0 me-auto">
+							Based on the excellent work of
+							<a href="https://github.com/axllent/mailpit" target="_blank" class="text-muted">Mailpit</a>
+							by <a href="https://github.com/axllent" target="_blank" class="text-muted">Ralph Slooten</a>.
+						</p>
 						<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
 					</div>
 				</div>
@@ -262,10 +267,10 @@ export default {
 						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 					</div>
 					<div class="modal-body">
-						<p class="h4">Get browser notifications when Mailpit receives new messages?</p>
+						<p class="h4">Get browser notifications when MessagePit receives new messages?</p>
 						<p>
 							Note that your browser will ask you for confirmation when you click
-							<code>enable notifications</code>, and that you must have Mailpit open in a browser tab to
+							<code>enable notifications</code>, and that you must have MessagePit open in a browser tab to
 							be able to receive the notifications.
 						</p>
 					</div>

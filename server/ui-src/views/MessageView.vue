@@ -1,5 +1,5 @@
 <script>
-import AboutMailpit from "../components/AppAbout.vue";
+import About from "../components/AppAbout.vue";
 import AjaxLoader from "../components/AjaxLoader.vue";
 import CommonMixins from "../mixins/CommonMixins";
 import Message from "../components/message/MessageItem.vue";
@@ -11,7 +11,7 @@ import dayjs from "dayjs";
 
 export default {
 	components: {
-		AboutMailpit,
+		About,
 		AjaxLoader,
 		Message,
 		Screenshot,
@@ -479,8 +479,8 @@ export default {
 	<div class="navbar navbar-expand-lg row flex-shrink-0 bg-primary text-white d-print-none" data-bs-theme="dark">
 		<div class="d-none d-xl-block col-xl-3 col-auto pe-0">
 			<RouterLink to="/" class="navbar-brand text-white me-0" @click="pagination.start = 0">
-				<img :src="resolve('/mailpit.svg')" alt="Mailpit" />
-				<span class="ms-2 d-none d-sm-inline">Mailpit</span>
+				<img :src="resolve('/mailpit.svg')" alt="MessagePit" />
+				<span class="ms-2 d-none d-sm-inline">MessagePit</span>
 			</RouterLink>
 		</div>
 		<div v-if="!errorMessage" class="col col-xl-5">
@@ -702,7 +702,7 @@ export default {
 				</template>
 			</div>
 
-			<AboutMailpit />
+			<About />
 		</div>
 
 		<div class="col-xl-9 mh-100 ps-0 ps-md-2 pe-0">
@@ -717,7 +717,7 @@ export default {
 		</div>
 	</div>
 
-	<AboutMailpit modals />
+	<About modals />
 	<AjaxLoader :loading="loading" />
 	<Release
 		v-if="mailbox.uiConfig.MessageRelay && loadReleaseModal"

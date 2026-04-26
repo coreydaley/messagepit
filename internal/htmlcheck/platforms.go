@@ -3,7 +3,7 @@ package htmlcheck
 import (
 	"slices"
 
-	"github.com/axllent/mailpit/internal/tools"
+	"github.com/coreydaley/messagepit/internal/tools"
 )
 
 // Platforms returns all platforms with their respective email clients

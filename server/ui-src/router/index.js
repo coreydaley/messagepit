@@ -3,6 +3,8 @@ import MailboxView from "../views/MailboxView.vue";
 import MessageView from "../views/MessageView.vue";
 import NotFoundView from "../views/NotFoundView.vue";
 import SearchView from "../views/SearchView.vue";
+import SMSMailboxView from "../views/SMSMailboxView.vue";
+import SMSMessageView from "../views/SMSMessageView.vue";
 
 const d = document.getElementById("app");
 let webroot = "/";
@@ -25,6 +27,14 @@ const router = createRouter({
 		{
 			path: "/view/:id",
 			component: MessageView,
+		},
+		{
+			path: "/sms",
+			component: SMSMailboxView,
+		},
+		{
+			path: "/sms/view/:id",
+			component: SMSMessageView,
 		},
 		{
 			path: "/:pathMatch(.*)*",

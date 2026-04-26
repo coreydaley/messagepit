@@ -13,8 +13,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/axllent/mailpit/config"
-	"github.com/axllent/mailpit/internal/logger"
+	"github.com/coreydaley/messagepit/config"
+	"github.com/coreydaley/messagepit/internal/logger"
 	"github.com/klauspost/compress/zstd"
 	"github.com/leporo/sqlf"
 
@@ -69,7 +69,7 @@ func InitDB() error {
 	if p == "" {
 		// when no path is provided then we create a temporary file
 		// which will get deleted on Close(), SIGINT or SIGTERM
-		p = fmt.Sprintf("%s-%d.db", path.Join(os.TempDir(), "mailpit"), time.Now().UnixNano())
+		p = fmt.Sprintf("%s-%d.db", path.Join(os.TempDir(), "messagepit"), time.Now().UnixNano())
 		// delete the Unix socket file on exit
 		AddTempFile(p)
 		sqlDriver = "sqlite"
@@ -169,7 +169,7 @@ func tenant(table string) string {
 
 // Close will close the database, and delete if temporary
 func Close() {
-	// on a fatal exit (eg: ports blocked), allow Mailpit to run migration tasks before closing the DB
+	// on a fatal exit (eg: ports blocked), allow MessagePit to run migration tasks before closing the DB
 	time.Sleep(200 * time.Millisecond)
 
 	if db != nil {

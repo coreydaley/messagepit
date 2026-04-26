@@ -7,10 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/axllent/mailpit/config"
-	"github.com/axllent/mailpit/internal/logger"
-	"github.com/axllent/mailpit/internal/tools"
-	"github.com/axllent/mailpit/server/websockets"
+	"github.com/coreydaley/messagepit/config"
+	"github.com/coreydaley/messagepit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/tools"
 	"github.com/leporo/sqlf"
 )
 
@@ -182,7 +181,7 @@ func pruneMessages() {
 		vacuumDb()
 	}
 
-	websockets.Broadcast("prune", nil)
+	broadcast("prune", nil)
 }
 
 // Vacuum the database to reclaim space from deleted messages

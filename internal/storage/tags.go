@@ -10,10 +10,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/axllent/mailpit/config"
-	"github.com/axllent/mailpit/internal/logger"
-	"github.com/axllent/mailpit/internal/tools"
-	"github.com/axllent/mailpit/server/websockets"
+	"github.com/coreydaley/messagepit/config"
+	"github.com/coreydaley/messagepit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/tools"
 	"github.com/leporo/sqlf"
 )
 
@@ -66,7 +65,7 @@ func SetMessageTags(id string, tags []string) ([]string, error) {
 		Tags []string
 	}{ID: id, Tags: applyTags}
 
-	websockets.Broadcast("update", d)
+	broadcast("update", d)
 
 	return tagNames, nil
 }

@@ -3,8 +3,7 @@ package storage
 import (
 	"time"
 
-	"github.com/axllent/mailpit/config"
-	"github.com/axllent/mailpit/server/websockets"
+	"github.com/coreydaley/messagepit/config"
 )
 
 var bcStatsDelay = false
@@ -33,6 +32,6 @@ func BroadcastMailboxStats() {
 			Version: config.Version,
 		}
 
-		websockets.Broadcast("stats", b)
+		broadcast("stats", b)
 	}()
 }

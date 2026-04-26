@@ -17,11 +17,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/axllent/mailpit/config"
-	"github.com/axllent/mailpit/internal/logger"
-	"github.com/axllent/mailpit/internal/tools"
-	"github.com/axllent/mailpit/server/webhook"
-	"github.com/axllent/mailpit/server/websockets"
+	"github.com/coreydaley/messagepit/config"
+	"github.com/coreydaley/messagepit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/tools"
 	"github.com/jhillyerd/enmime/v2"
 	"github.com/leporo/sqlf"
 	"github.com/lithammer/shortuuid/v4"
@@ -198,8 +196,8 @@ func Store(body *[]byte, username *string) (string, error) {
 	c.Tags = setTags
 	c.Snippet = snippet
 
-	websockets.Broadcast("new", c)
-	webhook.Send(c)
+	broadcast("new", c)
+	sendWebhook(c)
 
 	dbLastAction = time.Now()
 
@@ -563,7 +561,7 @@ func MarkRead(ids []string) error {
 			Read bool
 		}{ID: id, Read: true}
 
-		websockets.Broadcast("update", d)
+		broadcast("update", d)
 	}
 
 	BroadcastMailboxStats()
@@ -640,7 +638,7 @@ func MarkUnread(ids []string) error {
 			Read bool
 		}{ID: id, Read: false}
 
-		websockets.Broadcast("update", d)
+		broadcast("update", d)
 	}
 
 	BroadcastMailboxStats()
@@ -740,7 +738,7 @@ func DeleteMessages(ids []string) error {
 			ID string
 		}{ID: id}
 
-		websockets.Broadcast("delete", d)
+		broadcast("delete", d)
 	}
 
 	return nil
@@ -795,7 +793,7 @@ func DeleteAllMessages() error {
 
 	BroadcastMailboxStats()
 
-	websockets.Broadcast("truncate", nil)
+	broadcast("truncate", nil)
 
 	return err
 }

@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/axllent/mailpit/config"
-	"github.com/axllent/mailpit/internal/logger"
-	"github.com/axllent/mailpit/internal/tools"
+	"github.com/coreydaley/messagepit/config"
+	"github.com/coreydaley/messagepit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/tools"
 	"github.com/vanng822/go-premailer/premailer"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
@@ -196,7 +196,7 @@ func downloadCSSToBytes(url string) ([]byte, error) {
 		return nil, err
 	}
 
-	req.Header.Set("User-Agent", "Mailpit HTML Checker/"+config.Version)
+	req.Header.Set("User-Agent", "MessagePit HTML Checker/"+config.Version)
 
 	// Get the link response data
 	resp, err := client.Do(req)

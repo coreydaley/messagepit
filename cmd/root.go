@@ -6,30 +6,29 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/axllent/mailpit/config"
-	"github.com/axllent/mailpit/internal/auth"
-	"github.com/axllent/mailpit/internal/logger"
-	"github.com/axllent/mailpit/internal/prometheus"
-	"github.com/axllent/mailpit/internal/smtpd"
-	"github.com/axllent/mailpit/internal/smtpd/chaos"
-	"github.com/axllent/mailpit/internal/storage"
-	"github.com/axllent/mailpit/internal/tools"
-	"github.com/axllent/mailpit/server"
-	"github.com/axllent/mailpit/server/webhook"
+	"github.com/coreydaley/messagepit/config"
+	"github.com/coreydaley/messagepit/internal/auth"
+	"github.com/coreydaley/messagepit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/prometheus"
+	"github.com/coreydaley/messagepit/internal/smtpd"
+	"github.com/coreydaley/messagepit/internal/smtpd/chaos"
+	"github.com/coreydaley/messagepit/internal/storage"
+	"github.com/coreydaley/messagepit/internal/tools"
+	"github.com/coreydaley/messagepit/server"
+	"github.com/coreydaley/messagepit/server/webhook"
 	"github.com/spf13/cobra"
 )
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "mailpit",
-	Short: "Mailpit is an email testing tool for developers",
-	Long: `Mailpit is an email testing tool for developers.
+	Use:   "messagepit",
+	Short: "MessagePit is an email and SMS testing tool for developers",
+	Long: `MessagePit is an email and SMS testing tool for developers.
 
 It acts as an SMTP server, and provides a web interface to view all captured emails.
 
 Documentation:
-  https://github.com/axllent/mailpit
-  https://mailpit.axllent.org/docs/`,
+  https://github.com/coreydaley/messagepit`,
 	Run: func(_ *cobra.Command, _ []string) {
 		if err := config.VerifyConfig(); err != nil {
 			logger.Log().Error(err.Error())
@@ -49,6 +48,7 @@ Documentation:
 		}
 
 		go server.Listen()
+		go server.ListenSMS()
 
 		if err := smtpd.Listen(); err != nil {
 			storage.Close()
@@ -88,7 +88,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&config.DisableVersionCheck, "disable-version-check", config.DisableVersionCheck, "Disable version update checking")
 	rootCmd.Flags().BoolVar(&config.DisableAutoVACUUM, "disable-auto-vacuum", config.DisableAutoVACUUM, "Disable auto-VACUUM for the database")
 	rootCmd.Flags().IntVar(&config.Compression, "compression", config.Compression, "Compression level to store raw messages (0-3)")
-	rootCmd.Flags().StringVar(&config.Label, "label", config.Label, "Optional label identify this Mailpit instance")
+	rootCmd.Flags().StringVar(&config.Label, "label", config.Label, "Optional label identify this MessagePit instance")
 	rootCmd.Flags().StringVar(&config.TenantID, "tenant-id", config.TenantID, "Database tenant ID to isolate data")
 	rootCmd.Flags().IntVarP(&config.MaxMessages, "max", "m", config.MaxMessages, "Max number of messages to store")
 	rootCmd.Flags().StringVar(&config.MaxAge, "max-age", config.MaxAge, "Max age of messages in either (h)ours or (d)ays (eg: 3d)")
@@ -115,6 +115,10 @@ func init() {
 	// Send API
 	rootCmd.Flags().StringVar(&config.SendAPIAuthFile, "send-api-auth-file", config.SendAPIAuthFile, "A password file for Send API authentication")
 	rootCmd.Flags().BoolVar(&config.SendAPIAuthAcceptAny, "send-api-auth-accept-any", config.SendAPIAuthAcceptAny, "Accept any username and password for the Send API endpoint, including none")
+
+	// SMS ingest server
+	rootCmd.Flags().StringVar(&config.SMSListen, "sms", config.SMSListen, "SMS ingest bind interface and port")
+	rootCmd.Flags().StringVar(&config.TwilioAuthToken, "sms-auth-token", config.TwilioAuthToken, "Twilio auth token to validate X-Twilio-Signature on incoming SMS webhooks")
 
 	// SMTP server
 	rootCmd.Flags().StringVarP(&config.SMTPListen, "smtp", "s", config.SMTPListen, "SMTP bind interface and port")
@@ -277,6 +281,14 @@ func initConfigFromEnv() {
 	}
 	if getEnabledFromEnv("MP_SEND_API_AUTH_ACCEPT_ANY") {
 		config.SendAPIAuthAcceptAny = true
+	}
+
+	// SMS ingest server
+	if len(os.Getenv("MP_SMS_BIND_ADDR")) > 0 {
+		config.SMSListen = os.Getenv("MP_SMS_BIND_ADDR")
+	}
+	if len(os.Getenv("MP_SMS_AUTH_TOKEN")) > 0 {
+		config.TwilioAuthToken = os.Getenv("MP_SMS_AUTH_TOKEN")
 	}
 
 	// SMTP server

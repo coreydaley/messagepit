@@ -5,6 +5,7 @@ import AppBadge from "./components/AppBadge.vue";
 import Notifications from "./components/AppNotifications.vue";
 import EditTags from "./components/EditTags.vue";
 import { mailbox } from "./stores/mailbox";
+import { smsStore } from "./stores/sms";
 
 export default {
 	components: {
@@ -33,6 +34,12 @@ export default {
 			} else {
 				document.title = document.title + " - " + location.hostname;
 			}
+		});
+
+		// load initial SMS stats for badge display
+		this.get(this.resolve("/api/v1/sms/messages"), { limit: 1 }, (response) => {
+			smsStore.total = response.data.total;
+			smsStore.unread = response.data.unread;
 		});
 	},
 };

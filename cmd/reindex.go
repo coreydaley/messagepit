@@ -3,9 +3,9 @@ package cmd
 import (
 	"os"
 
-	"github.com/axllent/mailpit/config"
-	"github.com/axllent/mailpit/internal/logger"
-	"github.com/axllent/mailpit/internal/storage"
+	"github.com/coreydaley/messagepit/config"
+	"github.com/coreydaley/messagepit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -16,7 +16,7 @@ var reindexCmd = &cobra.Command{
 	Long: `This will reindex all messages in the entire database.
 
 If you have several thousand messages in your mailbox, then it is advised to shut down
-Mailpit while you reindex as this process will likely result in database locking issues.`,
+MessagePit while you reindex as this process will likely result in database locking issues.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(_ *cobra.Command, args []string) {
 		config.Database = args[0]

@@ -6,25 +6,23 @@ COPY . /app
 
 WORKDIR /app
 
-RUN  apk upgrade && apk add git npm && \
+RUN apk upgrade && apk add git npm && \
 npm install && npm run package && \
-CGO_ENABLED=0 go build -ldflags "-s -w -X github.com/axllent/mailpit/config.Version=${VERSION}" -o /mailpit
+CGO_ENABLED=0 go build -ldflags "-s -w -X github.com/coreydaley/messagepit/config.Version=${VERSION}" -o /messagepit
 
 FROM alpine:latest
 
-LABEL org.opencontainers.image.title="Mailpit" \
-  org.opencontainers.image.description="An email and SMTP testing tool with API for developers" \
-  org.opencontainers.image.source="https://github.com/axllent/mailpit" \
-  org.opencontainers.image.url="https://mailpit.axllent.org" \
-  org.opencontainers.image.documentation="https://mailpit.axllent.org/docs/" \
+LABEL org.opencontainers.image.title="MessagePit" \
+  org.opencontainers.image.description="An email and SMS testing tool with API for developers" \
+  org.opencontainers.image.source="https://github.com/coreydaley/messagepit" \
   org.opencontainers.image.licenses="MIT"
 
-COPY --from=builder /mailpit /mailpit
+COPY --from=builder /messagepit /messagepit
 
 RUN apk upgrade --no-cache && apk add --no-cache tzdata
 
-EXPOSE 1025/tcp 1110/tcp 8025/tcp
+EXPOSE 1025/tcp 1110/tcp 1775/tcp 8025/tcp
 
-HEALTHCHECK --interval=15s --start-period=10s --start-interval=1s CMD ["/mailpit", "readyz"]
+HEALTHCHECK --interval=15s --start-period=10s --start-interval=1s CMD ["/messagepit", "readyz"]
 
-ENTRYPOINT ["/mailpit"]
+ENTRYPOINT ["/messagepit"]

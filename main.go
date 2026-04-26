@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/axllent/mailpit/cmd"
-	sendmail "github.com/axllent/mailpit/sendmail/cmd"
+	"github.com/coreydaley/messagepit/cmd"
+	sendmail "github.com/coreydaley/messagepit/sendmail/cmd"
 )
 
 func main() {

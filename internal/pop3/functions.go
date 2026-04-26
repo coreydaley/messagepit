@@ -6,10 +6,9 @@ import (
 	"net"
 	"strings"
 
-	"github.com/axllent/mailpit/internal/auth"
-	"github.com/axllent/mailpit/internal/logger"
-	"github.com/axllent/mailpit/internal/storage"
-	"github.com/axllent/mailpit/server/websockets"
+	"github.com/coreydaley/messagepit/internal/auth"
+	"github.com/coreydaley/messagepit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/storage"
 )
 
 func authUser(username, password string) bool {
@@ -23,7 +22,7 @@ func sendResponse(c net.Conn, m string) {
 
 	if strings.HasPrefix(m, "-ERR ") {
 		sub, _ := strings.CutPrefix(m, "-ERR ")
-		websockets.BroadCastClientError("error", "pop3", c.RemoteAddr().String(), sub)
+		storage.BroadcastClientError("error", "pop3", c.RemoteAddr().String(), sub)
 	}
 }
 

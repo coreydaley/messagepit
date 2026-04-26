@@ -1,4 +1,4 @@
-// Package apiv1 provides the API v1 endpoints for Mailpit.
+// Package apiv1 provides the API v1 endpoints for MessagePit.
 //
 // These structs are for the purpose of defining swagger HTTP responses in go-swagger
 // in order to generate a spec file. They are lowercased to avoid exporting them as public types.
@@ -7,8 +7,9 @@
 package apiv1
 
 import (
-	"github.com/axllent/mailpit/internal/smtpd/chaos"
-	"github.com/axllent/mailpit/internal/stats"
+	"github.com/coreydaley/messagepit/internal/smtpd/chaos"
+	"github.com/coreydaley/messagepit/internal/stats"
+	"github.com/coreydaley/messagepit/internal/storage"
 )
 
 // Binary data response which inherits the attachment's content type.
@@ -60,7 +61,7 @@ type webUIConfigurationResponse struct {
 	//
 	// in: body
 	Body struct {
-		// Optional label to identify this Mailpit instance
+		// Optional label to identify this MessagePit instance
 		Label string
 		// Message Relay information
 		MessageRelay struct {
@@ -126,6 +127,22 @@ type messagesSummaryResponse struct {
 	// The messages summary
 	// in: body
 	Body MessagesSummary
+}
+
+// Summary of SMS messages
+// swagger:response SMSMessagesSummaryResponse
+type smSMessagesSummaryResponse struct {
+	// The SMS messages summary
+	// in: body
+	Body SMSMessagesSummary
+}
+
+// Single SMS message
+// swagger:response SMSMessageResponse
+type smSMessageResponse struct {
+	// An SMS message
+	// in: body
+	Body storage.SMSMessage
 }
 
 // Confirmation message for HTTP send API

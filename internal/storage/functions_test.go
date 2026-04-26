@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/axllent/mailpit/config"
-	"github.com/axllent/mailpit/internal/logger"
+	"github.com/coreydaley/messagepit/config"
+	"github.com/coreydaley/messagepit/internal/logger"
 )
 
 var (

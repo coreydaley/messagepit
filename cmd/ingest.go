@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/axllent/mailpit/internal/logger"
-	sendmail "github.com/axllent/mailpit/sendmail/cmd"
+	"github.com/coreydaley/messagepit/internal/logger"
+	sendmail "github.com/coreydaley/messagepit/sendmail/cmd"
 	"github.com/spf13/cobra"
 )
 
@@ -26,7 +26,7 @@ var ingestCmd = &cobra.Command{
 	Long: `Ingest a file or folder of emails for testing.
 
 This command will scan the folder for emails and deliver them via SMTP to a running 
-Mailpit server. Each email must be a separate file (eg: Maildir format, not mbox).
+MessagePit server. Each email must be a separate file (eg: Maildir format, not mbox).
 The --recent flag will only consider files with a modification date within the last X days.`,
 	// Hidden: true,
 	Args: cobra.MinimumNArgs(1),

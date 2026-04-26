@@ -1,4 +1,4 @@
-// Package pop3 is a simple POP3 server for Mailpit.
+// Package pop3 is a simple POP3 server for MessagePit.
 // By default it is disabled unless password credentials have been loaded.
 //
 // References: https://github.com/r0stig/golang-pop3 | https://github.com/inbucket/inbucket
@@ -15,11 +15,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/axllent/mailpit/config"
-	"github.com/axllent/mailpit/internal/auth"
-	"github.com/axllent/mailpit/internal/logger"
-	"github.com/axllent/mailpit/internal/storage"
-	"github.com/axllent/mailpit/server/websockets"
+	"github.com/coreydaley/messagepit/config"
+	"github.com/coreydaley/messagepit/internal/auth"
+	"github.com/coreydaley/messagepit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/storage"
 )
 
 const (
@@ -98,7 +97,9 @@ func handleClient(conn net.Conn) {
 					logger.Log().Errorf("[pop3] error deleting: %s", err.Error())
 				}
 				// Update web UI to remove deleted messages
-				websockets.Broadcast("prune", nil)
+				if storage.BroadcastFunc != nil {
+					storage.BroadcastFunc("prune", nil)
+				}
 			}
 		}
 
@@ -112,9 +113,9 @@ func handleClient(conn net.Conn) {
 	logger.Log().Debugf("[pop3] connection opened by %s", conn.RemoteAddr().String())
 
 	// First welcome the new connection
-	serverName := "Mailpit"
+	serverName := "MessagePit"
 	if config.Label != "" {
-		serverName = fmt.Sprintf("Mailpit (%s)", config.Label)
+		serverName = fmt.Sprintf("MessagePit (%s)", config.Label)
 	}
 	sendResponse(conn, fmt.Sprintf("+OK %s POP3 server", serverName))
 
@@ -152,7 +153,7 @@ func handleClient(conn net.Conn) {
 			sendResponse(conn, "TOP")
 			sendResponse(conn, "USER")
 			sendResponse(conn, "UIDL")
-			sendResponse(conn, "IMPLEMENTATION Mailpit")
+			sendResponse(conn, "IMPLEMENTATION MessagePit")
 			sendResponse(conn, ".")
 		case "USER":
 			if state == AUTHORIZATION {

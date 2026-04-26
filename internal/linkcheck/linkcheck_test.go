@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/axllent/mailpit/internal/storage"
+	"github.com/coreydaley/messagepit/internal/storage"
 )
 
 var (

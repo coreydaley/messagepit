@@ -386,8 +386,8 @@ export default {
 								<div class="accordion-body">
 									<p>This may be due to various reasons, for instance:</p>
 									<ul>
-										<li>The Mailpit server cannot resolve (DNS) the hostname of the URL.</li>
-										<li>Mailpit is not allowed to access the URL.</li>
+										<li>The MessagePit server cannot resolve (DNS) the hostname of the URL.</li>
+										<li>MessagePit is not allowed to access the URL.</li>
 										<li>
 											The webserver is blocking requests that don't come from authenticated web
 											browsers.

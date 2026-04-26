@@ -623,12 +623,12 @@ export default {
 											<a href="https://github.com/vanng822/go-premailer" target="_blank"
 												>inlined</a
 											>
-											to matching HTML elements. This gives Mailpit fairly accurate results.
+											to matching HTML elements. This gives MessagePit fairly accurate results.
 										</p>
 										<p>
 											CSS properties such as <code>@font-face</code>, <code>:visited</code>,
 											<code>:hover</code> etc cannot be inlined however, so these are searched for
-											within CSS blocks. This method is not accurate as Mailpit does not know how
+											within CSS blocks. This method is not accurate as MessagePit does not know how
 											many nodes it actually applies to, if any, so they are weighted lightly (5%)
 											as not to affect the score. An example of this would be any email linking to
 											the full bootstrap CSS which contains dozens of unused attributes.
@@ -666,7 +666,7 @@ export default {
 											determine the relevance of a single test to the entire email.
 										</p>
 										<p>
-											For each test, Mailpit calculates both the unsupported & partially-supported
+											For each test, MessagePit calculates both the unsupported & partially-supported
 											percentages in relation to the number of matches against the total number of
 											nodes (elements) in the HTML. The maximum unsupported and
 											partially-supported weighted scores are then used for the final score (ie:
@@ -693,7 +693,7 @@ export default {
 											</li>
 										</ul>
 										<p>
-											Mailpit will sort the warnings according to their weighted unsupported
+											MessagePit will sort the warnings according to their weighted unsupported
 											scores.
 										</p>
 									</div>

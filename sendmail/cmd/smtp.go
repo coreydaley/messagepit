@@ -11,7 +11,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/axllent/mailpit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/logger"
 )
 
 // Send is a wrapper for smtp.SendMail() which also supports sending via unix sockets.

@@ -3,14 +3,14 @@ package cmd
 import (
 	"os"
 
-	sendmail "github.com/axllent/mailpit/sendmail/cmd"
+	sendmail "github.com/coreydaley/messagepit/sendmail/cmd"
 	"github.com/spf13/cobra"
 )
 
 // sendmailCmd represents the sendmail command
 var sendmailCmd = &cobra.Command{
 	Use:   "sendmail [flags] [recipients]",
-	Short: "A sendmail command replacement for Mailpit",
+	Short: "A sendmail command replacement for MessagePit",
 	Run: func(_ *cobra.Command, _ []string) {
 		sendmail.Run()
 	},

@@ -1,9 +1,9 @@
 name: Tests
 on:
   pull_request:
-    branches: [ develop, 'feature/**' ]
+    branches: [main, 'feature/**']
   push:
-    branches: [ develop, 'feature/**' ]
+    branches: [main, 'feature/**']
 jobs:
   test:
     strategy:
@@ -28,13 +28,12 @@ jobs:
           ${{ runner.os }}-go-
     - name: Test Go linting (gofmt)
       if: startsWith(matrix.os, 'ubuntu') == true
-      # https://olegk.dev/github-actions-and-go
       run: gofmt -s -w . && git diff --exit-code
     - name: Run Go tests
-      run: go test -p 1 ./internal/storage ./server ./internal/smtpd ./internal/pop3 ./internal/tools ./internal/html2text ./internal/htmlcheck ./internal/linkcheck -v
+      run: go test -p 1 ./internal/storage ./internal/twilio ./server ./internal/smtpd ./internal/pop3 ./internal/tools ./internal/html2text ./internal/htmlcheck ./internal/linkcheck -v
     - name: Run Go benchmarking
       run: go test -p 1 ./internal/storage ./internal/html2text -bench=.
-    
+
     # build the assets
     - name: Set up node environment
       if: startsWith(matrix.os, 'ubuntu') == true
@@ -51,11 +50,3 @@ jobs:
     - name: Test JavaScript packaging
       if: startsWith(matrix.os, 'ubuntu') == true
       run: npm run package
-
-    # # validate the swagger file
-    # - name: Validate OpenAPI definition
-    #   if: startsWith(matrix.os, 'ubuntu') == true
-    #   uses: swaggerexpert/swagger-editor-validate@v1
-    #   with:
-    #     definition-file: server/ui/api/v1/swagger.json
-    #     default-timeout: 20000

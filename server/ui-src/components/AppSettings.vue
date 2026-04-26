@@ -97,7 +97,7 @@ export default {
 		<div class="modal-dialog modal-lg">
 			<div class="modal-content">
 				<div class="modal-header">
-					<h5 id="SettingsModalLabel" class="modal-title">Mailpit settings</h5>
+					<h5 id="SettingsModalLabel" class="modal-title">MessagePit settings</h5>
 					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 				</div>
 				<div class="modal-body">
@@ -160,7 +160,7 @@ export default {
 							tabindex="0"
 						>
 							<div class="my-3">
-								<label for="theme" class="form-label">Mailpit theme</label>
+								<label for="theme" class="form-label">MessagePit theme</label>
 								<select id="theme" v-model="theme" class="form-select">
 									<option value="auto">Auto (detect from browser)</option>
 									<option value="light">Light theme</option>

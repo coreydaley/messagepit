@@ -1,7 +1,7 @@
 // Package smtpd implements a basic SMTP server.
 //
 // This is a modified version of https://github.com/mhale/smtpd to
-// add support for unix sockets and Mailpit Chaos.
+// add support for unix sockets and MessagePit Chaos.
 package smtpd
 
 import (
@@ -24,7 +24,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/axllent/mailpit/internal/smtpd/chaos"
+	"github.com/coreydaley/messagepit/internal/smtpd/chaos"
 )
 
 var (
@@ -441,7 +441,7 @@ loop:
 					s.writef("501 5.5.4 Syntax error in parameters or arguments (invalid FROM parameter)")
 				}
 			} else {
-				// Mailpit Chaos
+				// MessagePit Chaos
 				if fail, code := chaos.Config.Sender.Trigger(); fail {
 					s.writef("%d Chaos sender error", code)
 					break
@@ -501,7 +501,7 @@ loop:
 					s.writef("501 5.5.4 Syntax error in parameters or arguments (invalid TO parameter)")
 				}
 			} else {
-				// Mailpit Chaos
+				// MessagePit Chaos
 				if fail, code := chaos.Config.Recipient.Trigger(); fail {
 					s.writef("%d Chaos recipient error", code)
 					break
@@ -745,7 +745,7 @@ loop:
 				break
 			}
 
-			// Mailpit Chaos
+			// MessagePit Chaos
 			if fail, code := chaos.Config.Authentication.Trigger(); fail {
 				s.writef("%d Chaos authentication error", code)
 				break
@@ -1060,7 +1060,7 @@ func extractAndValidateAddress(re *regexp.Regexp, args string) ([]string, error)
 
 		// https://datatracker.ietf.org/doc/html/rfc5321#section-4.5.3.1
 		// RFC states that the local part of an email address SHOULD not exceed 64 characters
-		// and the domain part SHOULD not exceed 255 characters, however as per https://github.com/axllent/mailpit/issues/620
+		// and the domain part SHOULD not exceed 255 characters, however as per https://github.com/coreydaley/messagepit/issues/620
 		// it appears that investigated mail servers do not actually implement this limit, but rather enforce
 		// a much larger limit (ie: 1024 characters).
 		if len(a.Address) > 1024 {

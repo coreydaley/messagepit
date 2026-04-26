@@ -9,13 +9,12 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/axllent/mailpit/config"
-	"github.com/axllent/mailpit/internal/auth"
-	"github.com/axllent/mailpit/internal/logger"
-	"github.com/axllent/mailpit/internal/stats"
-	"github.com/axllent/mailpit/internal/storage"
-	"github.com/axllent/mailpit/internal/tools"
-	"github.com/axllent/mailpit/server/websockets"
+	"github.com/coreydaley/messagepit/config"
+	"github.com/coreydaley/messagepit/internal/auth"
+	"github.com/coreydaley/messagepit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/stats"
+	"github.com/coreydaley/messagepit/internal/storage"
+	"github.com/coreydaley/messagepit/internal/tools"
 	"github.com/lithammer/shortuuid/v4"
 	"github.com/pkg/errors"
 )
@@ -37,7 +36,7 @@ func mailHandler(origin net.Addr, from string, to []string, data []byte, smtpUse
 func SaveToDatabase(origin net.Addr, from string, to []string, data []byte, smtpUser *string) (string, error) {
 	if !config.SMTPStrictRFCHeaders && bytes.Contains(data, []byte("\r\r\n")) {
 		// replace all <CR><CR><LF> (\r\r\n) with <CR><LF> (\r\n)
-		// @see https://github.com/axllent/mailpit/issues/87 & https://github.com/axllent/mailpit/issues/153
+		// @see https://github.com/coreydaley/messagepit/issues/87 & https://github.com/coreydaley/messagepit/issues/153
 		data = bytes.ReplaceAll(data, []byte("\r\r\n"), []byte("\r\n"))
 	}
 
@@ -62,7 +61,7 @@ func SaveToDatabase(origin net.Addr, from string, to []string, data []byte, smtp
 	// add a message ID if not set
 	if messageID == "" {
 		// generate unique ID
-		messageID = shortuuid.New() + "@mailpit"
+		messageID = shortuuid.New() + "@messagepit"
 		// add unique ID
 		data = append([]byte("Message-ID: <"+messageID+">\r\n"), data...)
 	} else if config.IgnoreDuplicateIDs {
@@ -219,12 +218,12 @@ func listenAndServe(addr string, handler MsgIDHandler, authHandler AuthHandler) 
 
 	socketAddr, perm, isSocket := tools.UnixSocket(addr)
 
-	Debug = true // to enable Mailpit logging
+	Debug = true // to enable MessagePit logging
 	srv := &Server{
 		Addr:                     addr,
 		MsgIDHandler:             handler,
 		HandlerRcpt:              handlerRcpt,
-		AppName:                  "Mailpit",
+		AppName:                  "MessagePit",
 		Hostname:                 "",
 		AuthHandler:              nil,
 		AuthRequired:             false,
@@ -237,10 +236,10 @@ func listenAndServe(addr string, handler MsgIDHandler, authHandler AuthHandler) 
 		LogWrite: func(remoteIP, verb, line string) {
 			if warningResponse.MatchString(line) {
 				logger.Log().Warnf("[smtpd] %s (%s) %s", verbLogTranslator(verb), remoteIP, line)
-				websockets.BroadCastClientError("warning", "smtpd", remoteIP, line)
+				storage.BroadcastClientError("warning", "smtpd", remoteIP, line)
 			} else if errorResponse.MatchString(line) {
 				logger.Log().Errorf("[smtpd] %s (%s) %s", verbLogTranslator(verb), remoteIP, line)
-				websockets.BroadCastClientError("error", "smtpd", remoteIP, line)
+				storage.BroadcastClientError("error", "smtpd", remoteIP, line)
 			} else {
 				logger.Log().Debugf("[smtpd] %s (%s) %s", verbLogTranslator(verb), remoteIP, line)
 			}
@@ -248,7 +247,7 @@ func listenAndServe(addr string, handler MsgIDHandler, authHandler AuthHandler) 
 	}
 
 	if config.Label != "" {
-		srv.AppName = fmt.Sprintf("Mailpit (%s)", config.Label)
+		srv.AppName = fmt.Sprintf("MessagePit (%s)", config.Label)
 	}
 
 	if config.SMTPAuthAllowInsecure {

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/axllent/mailpit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/logger"
 	"github.com/axllent/semver"
 )
 

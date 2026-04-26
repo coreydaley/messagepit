@@ -2,14 +2,14 @@ consumes:
   - application/json
 info:
   description:  |-
-    OpenAPI 2.0 documentation for [Mailpit](https://github.com/axllent/mailpit).
-  title: Mailpit API
+    OpenAPI 2.0 documentation for [MessagePit](https://github.com/coreydaley/messagepit).
+  title: MessagePit API
   contact:
     name: GitHub
-    url: https://github.com/axllent/mailpit
+    url: https://github.com/coreydaley/messagepit
   license:
     name: MIT license
-    url: https://github.com/axllent/mailpit/blob/develop/LICENSE
+    url: https://github.com/coreydaley/messagepit/blob/main/LICENSE
   version: "v1"
 paths: {}
 produces:

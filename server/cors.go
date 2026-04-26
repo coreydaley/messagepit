@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/axllent/mailpit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/logger"
 )
 
 var (

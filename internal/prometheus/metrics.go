@@ -1,4 +1,4 @@
-// Package prometheus provides Prometheus metrics for Mailpit
+// Package prometheus provides Prometheus metrics for MessagePit
 package prometheus
 
 import (
@@ -6,15 +6,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/axllent/mailpit/config"
-	"github.com/axllent/mailpit/internal/logger"
-	"github.com/axllent/mailpit/internal/stats"
+	"github.com/coreydaley/messagepit/config"
+	"github.com/coreydaley/messagepit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/stats"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
-	// Registry is the Prometheus registry for Mailpit metrics
+	// Registry is the Prometheus registry for MessagePit metrics
 	Registry = prometheus.NewRegistry()
 
 	// Metrics
@@ -35,58 +35,58 @@ var (
 func initMetrics() {
 	// Create metrics
 	totalMessages = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "mailpit_messages",
+		Name: "messagepit_messages",
 		Help: "Total number of messages in the database",
 	})
 
 	unreadMessages = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "mailpit_messages_unread",
+		Name: "messagepit_messages_unread",
 		Help: "Number of unread messages in the database",
 	})
 
 	databaseSize = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "mailpit_database_size_bytes",
+		Name: "messagepit_database_size_bytes",
 		Help: "Size of the database in bytes",
 	})
 
 	messagesDeleted = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "mailpit_messages_deleted_total",
+		Name: "messagepit_messages_deleted_total",
 		Help: "Total number of messages deleted",
 	})
 
 	smtpAccepted = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "mailpit_smtp_accepted_total",
+		Name: "messagepit_smtp_accepted_total",
 		Help: "Total number of SMTP messages accepted",
 	})
 
 	smtpRejected = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "mailpit_smtp_rejected_total",
+		Name: "messagepit_smtp_rejected_total",
 		Help: "Total number of SMTP messages rejected",
 	})
 
 	smtpIgnored = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "mailpit_smtp_ignored_total",
+		Name: "messagepit_smtp_ignored_total",
 		Help: "Total number of SMTP messages ignored (duplicates)",
 	})
 
 	smtpAcceptedSize = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "mailpit_smtp_accepted_size_bytes_total",
+		Name: "messagepit_smtp_accepted_size_bytes_total",
 		Help: "Total size of accepted SMTP messages in bytes",
 	})
 
 	uptime = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "mailpit_uptime_seconds",
-		Help: "Uptime of Mailpit in seconds",
+		Name: "messagepit_uptime_seconds",
+		Help: "Uptime of MessagePit in seconds",
 	})
 
 	memoryUsage = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "mailpit_memory_usage_bytes",
+		Name: "messagepit_memory_usage_bytes",
 		Help: "Memory usage in bytes",
 	})
 
 	tagCounters = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "mailpit_tag_messages",
+			Name: "messagepit_tag_messages",
 			Help: "Number of messages per tag",
 		},
 		[]string{"tag"},

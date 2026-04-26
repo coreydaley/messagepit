@@ -13,6 +13,18 @@ export default {
 			type: Number,
 			default: 0,
 		},
+		messages: {
+			type: Array,
+			default: null,
+		},
+		routeBase: {
+			type: String,
+			default: "/view/",
+		},
+		emptyText: {
+			type: String,
+			default: "No messages in your mailbox",
+		},
 	},
 
 	data() {
@@ -20,6 +32,12 @@ export default {
 			mailbox,
 			pagination,
 		};
+	},
+
+	computed: {
+		msgList() {
+			return this.messages !== null ? this.messages : this.mailbox.messages;
+		},
 	},
 
 	created() {
@@ -121,13 +139,13 @@ export default {
 </script>
 
 <template>
-	<template v-if="mailbox.messages && mailbox.messages.length">
+	<template v-if="msgList && msgList.length">
 		<div class="list-group my-2">
 			<RouterLink
-				v-for="message in mailbox.messages"
+				v-for="message in msgList"
 				:id="message.ID"
 				:key="'message_' + message.ID"
-				:to="'/view/' + message.ID"
+				:to="routeBase + message.ID"
 				class="row gx-1 message d-flex small list-group-item list-group-item-action border-start-0 border-end-0"
 				:class="[message.Read ? 'read' : '', isSelected(message.ID) ? ' selected' : '']"
 				@click.meta="toggleSelected($event, message.ID)"
@@ -194,7 +212,7 @@ export default {
 			<template v-else-if="getSearch()"
 				>No results for <code>{{ getSearch() }}</code></template
 			>
-			<template v-else>No messages in your mailbox</template>
+			<template v-else>{{ emptyText }}</template>
 		</p>
 	</template>
 </template>

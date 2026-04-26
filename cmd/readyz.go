@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/axllent/mailpit/config"
+	"github.com/coreydaley/messagepit/config"
 	"github.com/spf13/cobra"
 )
 
@@ -20,8 +20,8 @@ var (
 // readyzCmd represents the healthcheck command
 var readyzCmd = &cobra.Command{
 	Use:   "readyz",
-	Short: "Run a healthcheck to test if Mailpit is running",
-	Long: `This command connects to the /readyz endpoint of a running Mailpit server
+	Short: "Run a healthcheck to test if MessagePit is running",
+	Long: `This command connects to the /readyz endpoint of a running MessagePit server
 and exits with a status of 0 if the connection is successful, else with a 
 status 1 if unhealthy.
 

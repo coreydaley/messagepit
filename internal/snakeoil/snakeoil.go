@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/axllent/mailpit/internal/logger"
-	"github.com/axllent/mailpit/internal/tools"
+	"github.com/coreydaley/messagepit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/tools"
 )
 
 var keys = make(map[string]KeyPair)
@@ -139,7 +139,7 @@ func generate(domains []string) (string, string, error) {
 		SerialNumber: big.NewInt(0),
 		Subject: pkix.Name{
 			CommonName:   domains[0],
-			Organization: []string{"Mailpit self-signed certificate"},
+			Organization: []string{"MessagePit self-signed certificate"},
 		},
 		DNSNames:              domains,
 		SignatureAlgorithm:    x509.SHA256WithRSA,
@@ -166,7 +166,7 @@ func generate(domains []string) (string, string, error) {
 	)
 
 	// Store the paths to the generated keys
-	priv, err := os.CreateTemp("", ".mailpit-*-private.pem")
+	priv, err := os.CreateTemp("", ".messagepit-*-private.pem")
 	if err != nil {
 		return "", "", err
 	}
@@ -179,7 +179,7 @@ func generate(domains []string) (string, string, error) {
 		return "", "", err
 	}
 
-	pub, err := os.CreateTemp("", ".mailpit-*-public.pem")
+	pub, err := os.CreateTemp("", ".messagepit-*-public.pem")
 	if err != nil {
 		return "", "", err
 	}

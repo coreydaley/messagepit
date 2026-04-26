@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/axllent/mailpit/internal/tools"
+	"github.com/coreydaley/messagepit/internal/tools"
 )
 
 // IsFile returns whether a file exists and is readable

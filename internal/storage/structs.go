@@ -116,6 +116,50 @@ type MailboxStats struct {
 	Tags   []string
 }
 
+// SMSMessage represents a stored SMS message
+//
+// swagger:model SMSMessage
+type SMSMessage struct {
+	// Database ID
+	ID string
+	// Sender phone number
+	From string
+	// Recipient phone number
+	To string
+	// Message body
+	Body string
+	// Twilio AccountSID used to send the message
+	AccountSID string
+	// Read status
+	Read bool
+	// Received date & time
+	Created time.Time
+}
+
+// SMSMessageSummary is used for list views and websocket broadcasts
+//
+// swagger:model SMSMessageSummary
+type SMSMessageSummary struct {
+	// Database ID
+	ID string
+	// Sender phone number
+	From string
+	// Recipient phone number
+	To string
+	// Message body (full — SMS messages are short)
+	Body string
+	// Read status
+	Read bool
+	// Received date & time
+	Created time.Time
+}
+
+// SMSMailboxStats for quick SMS total/unread lookups
+type SMSMailboxStats struct {
+	Total  uint64
+	Unread uint64
+}
+
 // Metadata struct for storing message metadata
 type Metadata struct {
 	From     *mail.Address   `json:"From,omitempty"`

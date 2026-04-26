@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/axllent/mailpit/config"
-	"github.com/axllent/mailpit/internal/smtpd/chaos"
-	"github.com/axllent/mailpit/internal/stats"
+	"github.com/coreydaley/messagepit/config"
+	"github.com/coreydaley/messagepit/internal/smtpd/chaos"
+	"github.com/coreydaley/messagepit/internal/stats"
 )
 
 // AppInfo returns some basic details about the running app including the latest release (unless disabled).

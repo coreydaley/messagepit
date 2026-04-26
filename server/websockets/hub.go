@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/axllent/mailpit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/logger"
 )
 
 // Hub maintains the set of active clients and broadcasts messages to the

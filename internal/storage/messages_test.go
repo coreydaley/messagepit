@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/axllent/mailpit/config"
+	"github.com/coreydaley/messagepit/config"
 )
 
 func TestTextEmailInserts(t *testing.T) {

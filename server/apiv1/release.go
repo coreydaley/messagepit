@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/axllent/mailpit/config"
-	"github.com/axllent/mailpit/internal/logger"
-	"github.com/axllent/mailpit/internal/smtpd"
-	"github.com/axllent/mailpit/internal/storage"
-	"github.com/axllent/mailpit/internal/tools"
+	"github.com/coreydaley/messagepit/config"
+	"github.com/coreydaley/messagepit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/smtpd"
+	"github.com/coreydaley/messagepit/internal/storage"
+	"github.com/coreydaley/messagepit/internal/tools"
 	"github.com/gorilla/mux"
 	"github.com/lithammer/shortuuid/v4"
 )
@@ -159,7 +159,7 @@ func ReleaseMessage(w http.ResponseWriter, r *http.Request) {
 
 	if !config.SMTPRelayConfig.PreserveMessageIDs {
 		// replace the Message-ID header with unique ID
-		uid := shortuuid.New() + "@mailpit"
+		uid := shortuuid.New() + "@messagepit"
 		msg, err = tools.SetMessageHeader(msg, "Message-ID", "<"+uid+">")
 		if err != nil {
 			httpError(w, err.Error())

@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/axllent/mailpit/config"
-	"github.com/axllent/mailpit/internal/logger"
+	"github.com/coreydaley/messagepit/config"
+	"github.com/coreydaley/messagepit/internal/logger"
 	"golang.org/x/time/rate"
 )
 
@@ -62,11 +62,11 @@ func Send(msg any) {
 				return
 			}
 
-			req.Header.Set("User-Agent", "Mailpit/"+config.Version)
+			req.Header.Set("User-Agent", "MessagePit/"+config.Version)
 			req.Header.Set("Content-Type", "application/json")
 
 			if config.Label != "" {
-				req.Header.Set("Mailpit-Label", config.Label)
+				req.Header.Set("MessagePit-Label", config.Label)
 			}
 
 			client := &http.Client{Timeout: 5 * time.Second}

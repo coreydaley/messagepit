@@ -12,29 +12,32 @@ import (
 	"strings"
 
 	"github.com/axllent/ghru/v2"
-	"github.com/axllent/mailpit/internal/auth"
-	"github.com/axllent/mailpit/internal/logger"
-	"github.com/axllent/mailpit/internal/smtpd/chaos"
-	"github.com/axllent/mailpit/internal/snakeoil"
-	"github.com/axllent/mailpit/internal/spamassassin"
-	"github.com/axllent/mailpit/internal/tools"
+	"github.com/coreydaley/messagepit/internal/auth"
+	"github.com/coreydaley/messagepit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/smtpd/chaos"
+	"github.com/coreydaley/messagepit/internal/snakeoil"
+	"github.com/coreydaley/messagepit/internal/spamassassin"
+	"github.com/coreydaley/messagepit/internal/tools"
 )
 
 var (
-	// Version is the Mailpit version, updated with every release
+	// Version is the MessagePit version, updated with every release
 	Version = "dev"
 
 	// GHRUConfig is the configuration for the GitHub Release Updater
 	// used to check for updates and self-update
 	GHRUConfig = ghru.Config{
-		Repo:           "axllent/mailpit",
-		ArchiveName:    "mailpit-{{.OS}}-{{.Arch}}",
-		BinaryName:     "mailpit",
+		Repo:           "coreydaley/messagepit",
+		ArchiveName:    "messagepit-{{.OS}}-{{.Arch}}",
+		BinaryName:     "messagepit",
 		CurrentVersion: Version,
 	}
 
 	// SMTPListen to listen on <interface>:<port>
 	SMTPListen = "[::]:1025"
+
+	// SMSListen is the bind address for the SMS ingest server.
+	SMSListen = "[::]:1775"
 
 	// HTTPListen to listen on <interface>:<port>
 	HTTPListen = "[::]:8025"
@@ -55,10 +58,10 @@ var (
 	Compression = 1
 
 	// TenantID is an optional prefix to be applied to all database tables,
-	// allowing multiple isolated instances of Mailpit to share a database.
+	// allowing multiple isolated instances of MessagePit to share a database.
 	TenantID string
 
-	// Label to identify this Mailpit instance (optional).
+	// Label to identify this MessagePit instance (optional).
 	// This gets applied to web UI, SMTP and optional POP3 server.
 	Label string
 
@@ -180,7 +183,7 @@ var (
 	SMTPForwardConfig SMTPForwardConfigStruct
 
 	// SMTPStrictRFCHeaders will return an error if the email headers contain <CR><CR><LF> (\r\r\n)
-	// @see https://github.com/axllent/mailpit/issues/87 & https://github.com/axllent/mailpit/issues/153
+	// @see https://github.com/coreydaley/messagepit/issues/87 & https://github.com/coreydaley/messagepit/issues/153
 	SMTPStrictRFCHeaders bool
 
 	// SMTPAllowedRecipients if set, will only accept recipients matching this regular expression
@@ -192,7 +195,7 @@ var (
 	// SMTPIgnoreRejectedRecipients if true, will accept emails to rejected recipients with 2xx response but silently drop them
 	SMTPIgnoreRejectedRecipients bool
 
-	// POP3Listen address - if set then Mailpit will start the POP3 server and listen on this address
+	// POP3Listen address - if set then MessagePit will start the POP3 server and listen on this address
 	POP3Listen = "[::]:1110"
 
 	// POP3AuthFile for POP3 authentication
@@ -203,6 +206,11 @@ var (
 
 	// POP3TLSKey TLS certificate key
 	POP3TLSKey string
+
+	// TwilioAuthToken is the Twilio auth token used to validate incoming request signatures.
+	// When set, requests to the Twilio SMS ingest endpoint must include a valid X-Twilio-Signature header.
+	// When empty, signature validation is skipped (suitable for local development).
+	TwilioAuthToken string
 
 	// EnableSpamAssassin must be either <host>:<port> or "postmark"
 	EnableSpamAssassin string
@@ -291,7 +299,7 @@ func VerifyConfig() error {
 	}
 
 	// The default Content Security Policy is updates on every application page load to replace script-src 'self'
-	// with a random nonce ID to prevent XSS. This applies to the Mailpit app & API.
+	// with a random nonce ID to prevent XSS. This applies to the MessagePit app & API.
 	// See server.middleWareFunc()
 	ContentSecurityPolicy = fmt.Sprintf(
 		"default-src 'self'; script-src 'self'; style-src %s 'unsafe-inline'; frame-src 'self'; img-src * data: blob:; font-src %s data:; media-src 'self'; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'self';",
@@ -299,7 +307,7 @@ func VerifyConfig() error {
 	)
 
 	if Database != "" && isDir(Database) {
-		Database = filepath.Join(Database, "mailpit.db")
+		Database = filepath.Join(Database, "messagepit.db")
 	}
 
 	if Compression < 0 || Compression > 3 {
@@ -320,6 +328,11 @@ func VerifyConfig() error {
 	re := regexp.MustCompile(`.*:\d+$`)
 	if _, _, isSocket := tools.UnixSocket(SMTPListen); !isSocket && !re.MatchString(SMTPListen) {
 		return errors.New("[smtp] bind should be in the format of <ip>:<port>")
+	}
+	if SMSListen != "" {
+		if !re.MatchString(SMSListen) {
+			return errors.New("[sms] bind should be in the format of <ip>:<port>")
+		}
 	}
 	if _, _, isSocket := tools.UnixSocket(HTTPListen); !isSocket && !re.MatchString(HTTPListen) {
 		return errors.New("[ui] HTTP bind should be in the format of <ip>:<port>")

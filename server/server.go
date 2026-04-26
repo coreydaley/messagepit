@@ -16,18 +16,20 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/axllent/mailpit/config"
-	"github.com/axllent/mailpit/internal/auth"
-	"github.com/axllent/mailpit/internal/logger"
-	"github.com/axllent/mailpit/internal/pop3"
-	"github.com/axllent/mailpit/internal/prometheus"
-	"github.com/axllent/mailpit/internal/snakeoil"
-	"github.com/axllent/mailpit/internal/stats"
-	"github.com/axllent/mailpit/internal/storage"
-	"github.com/axllent/mailpit/internal/tools"
-	"github.com/axllent/mailpit/server/apiv1"
-	"github.com/axllent/mailpit/server/handlers"
-	"github.com/axllent/mailpit/server/websockets"
+	"github.com/coreydaley/messagepit/config"
+	"github.com/coreydaley/messagepit/internal/auth"
+	"github.com/coreydaley/messagepit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/pop3"
+	"github.com/coreydaley/messagepit/internal/prometheus"
+	"github.com/coreydaley/messagepit/internal/snakeoil"
+	"github.com/coreydaley/messagepit/internal/stats"
+	"github.com/coreydaley/messagepit/internal/storage"
+	"github.com/coreydaley/messagepit/internal/tools"
+	"github.com/coreydaley/messagepit/internal/twilio"
+	"github.com/coreydaley/messagepit/server/apiv1"
+	"github.com/coreydaley/messagepit/server/handlers"
+	"github.com/coreydaley/messagepit/server/webhook"
+	"github.com/coreydaley/messagepit/server/websockets"
 	"github.com/gorilla/mux"
 	"github.com/lithammer/shortuuid/v4"
 )
@@ -53,6 +55,11 @@ func Listen() {
 	stats.Track()
 
 	websockets.MessageHub = websockets.NewHub()
+
+	// wire storage notification callbacks to the server layer
+	storage.BroadcastFunc = websockets.Broadcast
+	storage.WebhookFunc = webhook.Send
+	storage.BroadcastClientErrorFunc = websockets.BroadCastClientError
 
 	// set allowed websocket origins from configuration
 	// websockets.SetAllowedOrigins(AccessControlAllowWSOrigins)
@@ -94,6 +101,8 @@ func Listen() {
 	// web UI via virtual index.html
 	r.PathPrefix(config.Webroot + "view/").Handler(middleWareFunc(index)).Methods("GET")
 	r.Path(config.Webroot + "search").Handler(middleWareFunc(index)).Methods("GET")
+	r.Path(config.Webroot + "sms").Handler(middleWareFunc(index)).Methods("GET")
+	r.PathPrefix(config.Webroot + "sms/view/").Handler(middleWareFunc(index)).Methods("GET")
 	r.Path(config.Webroot).Handler(middleWareFunc(index)).Methods("GET")
 
 	if auth.UICredentials != nil {
@@ -165,6 +174,32 @@ func Listen() {
 	}
 }
 
+// ListenSMS starts the SMS ingest server on config.SMSListen.
+// It is a minimal HTTP server kept separate from the UI/API server so
+// applications can point their SMS provider URL at a different address
+// than the management UI.
+func ListenSMS() {
+	if config.SMSListen == "" {
+		return
+	}
+
+	r := mux.NewRouter()
+	r.HandleFunc("/2010-04-01/Accounts/{AccountSid}/Messages.json", twilio.CreateMessage).Methods("POST")
+
+	server := &http.Server{
+		Addr:         config.SMSListen,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		Handler:      r,
+	}
+
+	logger.Log().Infof("[sms] starting on %s", config.SMSListen)
+	if err := server.ListenAndServe(); err != nil {
+		storage.Close()
+		logger.Log().Fatal(err)
+	}
+}
+
 func apiRoutes() *mux.Router {
 	r := mux.NewRouter()
 
@@ -204,6 +239,13 @@ func apiRoutes() *mux.Router {
 			prometheus.GetHandler().ServeHTTP(w, r)
 		})).Methods("GET")
 	}
+
+	// MessagePit SMS API
+	r.HandleFunc(config.Webroot+"api/v1/sms/messages", middleWareFunc(apiv1.GetSMSMessages)).Methods("GET")
+	r.HandleFunc(config.Webroot+"api/v1/sms/messages", middleWareFunc(apiv1.DeleteAllSMS)).Methods("DELETE")
+	r.HandleFunc(config.Webroot+"api/v1/sms/message/{id}", middleWareFunc(apiv1.GetSMSMessage)).Methods("GET")
+	r.HandleFunc(config.Webroot+"api/v1/sms/message/{id}", middleWareFunc(apiv1.DeleteSMSMessage)).Methods("DELETE")
+	r.HandleFunc(config.Webroot+"api/v1/sms/message/{id}/read", middleWareFunc(apiv1.MarkSMSRead)).Methods("PUT")
 
 	// web UI websocket
 	r.HandleFunc(config.Webroot+"api/events", middleWareFunc(apiWebsocket)).Methods("GET")
@@ -382,14 +424,14 @@ func index(w http.ResponseWriter, r *http.Request) {
 	<meta name="referrer" content="no-referrer">
 	<meta name="robots" content="noindex, nofollow, noarchive">
 	<link rel="icon" href="{{ .Webroot }}favicon.svg">
-	<title>Mailpit</title>
+	<title>MessagePit</title>
 	<link rel=stylesheet href="{{ .Webroot }}dist/app.css?{{ .Version }}">
 </head>
 
 <body class="h-100">
 	<div class="container-fluid h-100 d-flex flex-column" id="app" data-webroot="{{ .Webroot }}" data-version="{{ .Version }}">
 		<noscript class="alert alert-warning position-absolute top-50 start-50 translate-middle">
-			You need a browser with JavaScript enabled to use Mailpit
+			You need a browser with JavaScript enabled to use MessagePit
 		</noscript>
 	</div>
 

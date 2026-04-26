@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"sync/atomic"
 
-	"github.com/axllent/mailpit/internal/storage"
+	"github.com/coreydaley/messagepit/internal/storage"
 )
 
 // ReadyzHandler is a ready probe that signals k8s to be able to retrieve traffic

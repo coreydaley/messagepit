@@ -1,7 +1,7 @@
 package apiv1
 
 import (
-	"github.com/axllent/mailpit/internal/storage"
+	"github.com/coreydaley/messagepit/internal/storage"
 )
 
 // The following structs & aliases are provided for easy import

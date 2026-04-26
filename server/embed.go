@@ -6,7 +6,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/axllent/mailpit/config"
+	"github.com/coreydaley/messagepit/config"
 )
 
 var (

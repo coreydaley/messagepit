@@ -8,7 +8,7 @@ import (
 	"net/mail"
 	"net/url"
 
-	"github.com/axllent/mailpit/internal/storage"
+	"github.com/coreydaley/messagepit/internal/storage"
 	"github.com/gorilla/mux"
 )
 

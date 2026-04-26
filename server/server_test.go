@@ -12,11 +12,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/axllent/mailpit/config"
-	"github.com/axllent/mailpit/internal/auth"
-	"github.com/axllent/mailpit/internal/logger"
-	"github.com/axllent/mailpit/internal/storage"
-	"github.com/axllent/mailpit/server/apiv1"
+	"github.com/coreydaley/messagepit/config"
+	"github.com/coreydaley/messagepit/internal/auth"
+	"github.com/coreydaley/messagepit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/storage"
+	"github.com/coreydaley/messagepit/server/apiv1"
 	"github.com/jhillyerd/enmime/v2"
 	"golang.org/x/crypto/bcrypt"
 )

@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/axllent/mailpit/config"
-	"github.com/axllent/mailpit/internal/logger"
-	"github.com/axllent/mailpit/internal/tools"
+	"github.com/coreydaley/messagepit/config"
+	"github.com/coreydaley/messagepit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/tools"
 )
 
 func getHTTPStatuses(links []string, followRedirects bool) []Link {
@@ -108,7 +108,7 @@ func doHead(link string, followRedirects bool) (int, error) {
 		return 0, err
 	}
 
-	req.Header.Set("User-Agent", "Mailpit/"+config.Version)
+	req.Header.Set("User-Agent", "MessagePit/"+config.Version)
 
 	res, err := client.Do(req)
 	if err != nil {

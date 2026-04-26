@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/axllent/mailpit/internal/storage"
-	"github.com/axllent/mailpit/server/websockets"
+	"github.com/coreydaley/messagepit/internal/storage"
+	"github.com/coreydaley/messagepit/server/websockets"
 	"github.com/gorilla/mux"
 )
 

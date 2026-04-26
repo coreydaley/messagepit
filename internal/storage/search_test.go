@@ -6,7 +6,7 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	"github.com/axllent/mailpit/config"
+	"github.com/coreydaley/messagepit/config"
 	"github.com/jhillyerd/enmime/v2"
 )
 

@@ -9,6 +9,7 @@ import NavTags from "../components/NavTags.vue";
 import Pagination from "../components/NavPagination.vue";
 import SearchForm from "../components/SearchForm.vue";
 import { mailbox } from "../stores/mailbox";
+import { smsStore } from "../stores/sms";
 import { pagination } from "../stores/pagination";
 
 export default {
@@ -30,6 +31,7 @@ export default {
 	data() {
 		return {
 			mailbox,
+			smsStore,
 			delayedRefresh: false,
 			paginationDelayed: false, // for delayed pagination URL changes
 		};
@@ -179,11 +181,27 @@ export default {
 	<div class="navbar navbar-expand-lg row flex-shrink-0 bg-primary text-white d-print-none" data-bs-theme="dark">
 		<div class="col-xl-2 col-md-3 col-auto pe-0">
 			<RouterLink to="/" class="navbar-brand text-white me-0" @click="reloadMailbox">
-				<img :src="resolve('/mailpit.svg')" alt="Mailpit" />
-				<span class="ms-2 d-none d-sm-inline">Mailpit</span>
+				<img :src="resolve('/mailpit.svg')" alt="MessagePit" />
+				<span class="ms-2 d-none d-sm-inline">MessagePit</span>
 			</RouterLink>
 		</div>
-		<div class="col col-md-4k col-lg-5 col-xl-6">
+		<div class="col col-md-4 col-lg-5 col-xl-6 d-flex align-items-center gap-3">
+			<div class="nav nav-pills flex-shrink-0">
+				<RouterLink to="/" class="nav-link text-white px-3 active bg-white bg-opacity-25">
+					<i class="bi bi-envelope-fill me-1"></i>
+					Email
+					<span v-if="mailbox.unread" class="badge rounded-pill ms-1 text-bg-secondary">
+						{{ formatNumber(mailbox.unread) }}
+					</span>
+				</RouterLink>
+				<RouterLink to="/sms" class="nav-link text-white opacity-75 px-3">
+					<i class="bi bi-chat-fill me-1"></i>
+					SMS
+					<span v-if="smsStore.unread" class="badge rounded-pill ms-1 text-bg-secondary">
+						{{ formatNumber(smsStore.unread) }}
+					</span>
+				</RouterLink>
+			</div>
 			<SearchForm />
 		</div>
 		<div class="col-12 col-md-auto col-lg-4 col-xl-4 text-end mt-2 mt-md-0">
@@ -210,7 +228,7 @@ export default {
 		aria-labelledby="offcanvasLabel"
 	>
 		<div class="offcanvas-header">
-			<h5 id="offcanvasLabel" class="offcanvas-title">Mailpit</h5>
+			<h5 id="offcanvasLabel" class="offcanvas-title">MessagePit</h5>
 			<button
 				type="button"
 				class="btn-close"

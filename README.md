@@ -1,124 +1,124 @@
-<h1 align="center">
-  Mailpit - email testing for developers
-</h1>
+# MessagePit
 
-<div align="center">
-    <a href="https://github.com/axllent/mailpit/actions/workflows/tests.yml"><img src="https://github.com/axllent/mailpit/actions/workflows/tests.yml/badge.svg" alt="CI Tests status"></a>
-    <a href="https://github.com/axllent/mailpit/actions/workflows/release-build.yml"><img src="https://github.com/axllent/mailpit/actions/workflows/release-build.yml/badge.svg" alt="CI build status"></a>
-    <a href="https://github.com/axllent/mailpit/actions/workflows/build-docker.yml"><img src="https://github.com/axllent/mailpit/actions/workflows/build-docker.yml/badge.svg" alt="CI Docker build status"></a>
-    <a href="https://github.com/axllent/mailpit/actions/workflows/codeql-analysis.yml"><img src="https://github.com/axllent/mailpit/actions/workflows/codeql-analysis.yml/badge.svg" alt="Code quality"></a>
-    <a href="https://goreportcard.com/report/github.com/axllent/mailpit"><img src="https://goreportcard.com/badge/github.com/axllent/mailpit" alt="Go Report Card"></a>
-    <br>
-    <a href="https://github.com/axllent/mailpit/releases/latest"><img src="https://img.shields.io/github/v/release/axllent/mailpit.svg" alt="Latest release"></a>
-    <a href="https://hub.docker.com/r/axllent/mailpit"><img src="https://img.shields.io/docker/pulls/axllent/mailpit.svg" alt="Docker pulls"></a>
-</div>
-<br>
-<p align="center">
-  <a href="https://mailpit.axllent.org">Website</a>  •
-  <a href="https://mailpit.axllent.org/docs/">Documentation</a>  •
-  <a href="https://mailpit.axllent.org/docs/api-v1/">API</a>
-</p>
+An email **and SMS** testing tool for developers. Send test emails and SMS messages from your application and inspect them in a clean web UI — nothing reaches real inboxes or real phones.
 
-<hr>
-
-**Mailpit** is a small, fast, low memory, zero-dependency, multi-platform email testing tool & API for developers.
-
-It acts as an SMTP server, provides a modern web interface to view & test captured emails, and includes an API for automated integration testing.
-
-Mailpit was originally **inspired** by MailHog which is [no longer maintained](https://github.com/mailhog/MailHog/issues/442#issuecomment-1493415258) and hasn't seen active development or security updates for a few years now.
-
-![Mailpit](https://raw.githubusercontent.com/axllent/mailpit/develop/server/ui-src/screenshot.png)
-
+MessagePit is a fork of [Mailpit](https://github.com/axllent/mailpit) extended with a Twilio-compatible SMS ingest endpoint, an SMS inbox UI, and a dedicated SMS ingest server.
 
 ## Features
 
-- Runs entirely from a single [static binary](https://mailpit.axllent.org/docs/install/) or multi-architecture [Docker images](https://mailpit.axllent.org/docs/install/docker/)
-- Modern web UI with advanced [mail search](https://mailpit.axllent.org/docs/usage/search-filters/) to view emails (formatted HTML, highlighted HTML source, text, headers, raw source, and MIME attachments
-including image thumbnails), including optional [HTTPS](https://mailpit.axllent.org/docs/configuration/http/) & [authentication](https://mailpit.axllent.org/docs/configuration/http/)
-- [SMTP server](https://mailpit.axllent.org/docs/configuration/smtp/) with optional STARTTLS or SSL/TLS, authentication (including an "accept any" mode)
-- A [REST API](https://mailpit.axllent.org/docs/api-v1/) for integration testing
-- Real-time web UI updates using web sockets for new mail & optional [browser notifications](https://mailpit.axllent.org/docs/usage/notifications/) when new mail is received
-- Optional [POP3 server](https://mailpit.axllent.org/docs/configuration/pop3/) to download captured message directly into your email client
-- [HTML check](https://mailpit.axllent.org/docs/usage/html-check/) to test & score mail client compatibility with HTML emails
-- [Link check](https://mailpit.axllent.org/docs/usage/link-check/) to test message links (HTML & text) & linked images
-- [Spam check](https://mailpit.axllent.org/docs/usage/spamassassin/) to test message "spamminess" using a running SpamAssassin server
-- [Create screenshots](https://mailpit.axllent.org/docs/usage/html-screenshots/) of HTML messages via web UI
-- Mobile and tablet HTML preview toggle in desktop mode
-- [Message tagging](https://mailpit.axllent.org/docs/usage/tagging/) including manual tagging or automated tagging using filtering and "plus addressing"
-- [SMTP relaying](https://mailpit.axllent.org/docs/configuration/smtp-relay/) (message release) - relay messages via a different SMTP server including an optional allowlist of accepted recipients
-- [SMTP forwarding](https://mailpit.axllent.org/docs/configuration/smtp-forward/) - automatically forward messages via a different SMTP server to predefined email addresses
-- Fast message [storing & processing](https://mailpit.axllent.org/docs/configuration/email-storage/) - ingesting 100-200 emails per second over SMTP depending on CPU, network speed & email size,
-easily handling tens of thousands of emails, with automatic email pruning (by default keeping the most recent 500 emails)
-- [Chaos](https://mailpit.axllent.org/docs/integration/chaos/) feature to enable configurable SMTP errors to test application resilience
-- `List-Unsubscribe` syntax validation
-- Optional [webhook](https://mailpit.axllent.org/docs/integration/webhook/) for received messages
+- **Email**: SMTP server, web UI, REST API, WebSocket live updates, search, tagging, POP3 server
+- **SMS**: Twilio-compatible HTTP ingest, SMS inbox with read/unread tracking, live WebSocket updates
+- **Shared**: Multi-arch Docker image, optional HTTP basic auth, Prometheus metrics
 
+## Ports
 
-## Installation
+| Port | Protocol | Purpose |
+|------|----------|---------|
+| 1025 | SMTP | Email ingest (mirrors port 25) |
+| 1110 | POP3 | POP3 server (optional) |
+| 1775 | HTTP | SMS ingest — Twilio-compatible (mirrors SMPP port 2775) |
+| 8025 | HTTP | Web UI and management API |
 
-The Mailpit web UI listens by default on `http://0.0.0.0:8025` and the SMTP port on `0.0.0.0:1025`.
+## Quick Start
 
-Mailpit runs as a single binary and can be installed in different ways:
+```bash
+# Docker
+docker run -p 1025:1025 -p 1775:1775 -p 8025:8025 ghcr.io/coreydaley/messagepit
 
-
-### Install via package managers
-
-- **Mac**: `brew install mailpit` (to run automatically in the background: `brew services start mailpit`)
-- **Arch Linux**: available in the AUR as `mailpit`
-- **FreeBSD**: `pkg install mailpit`
-
-
-### Install via script (Linux & Mac)
-
-Linux & Mac users can install it directly to `/usr/local/bin/mailpit` with:
-
-```shell
-sudo sh < <(curl -sL https://raw.githubusercontent.com/axllent/mailpit/develop/install.sh)
+# From source
+make run
 ```
 
-You can also change the install path to something else by setting the `INSTALL_PATH` environment, for example:
+Open [http://localhost:8025](http://localhost:8025) in your browser.
 
-```shell
-sudo INSTALL_PATH=/usr/bin sh < <(curl -sL https://raw.githubusercontent.com/axllent/mailpit/develop/install.sh)
+## SMS Integration
+
+Point your application's Twilio SDK at the SMS ingest server instead of `api.twilio.com`:
+
+```
+http://localhost:1775
 ```
 
+The SMS server implements the Twilio Messages API endpoint:
 
-### Download static binary (Windows, Linux and Mac)
+```
+POST /2010-04-01/Accounts/{AccountSid}/Messages.json
+```
 
-Static binaries can always be found on the [releases](https://github.com/axllent/mailpit/releases/latest). The `mailpit` binary can be extracted and copied to your `$PATH`, or simply run as `./mailpit`.
+Required form fields: `From`, `To`, `Body`.
 
+### Signature validation
 
-### Docker
+If `--sms-auth-token` is set, the server validates the `X-Twilio-Signature` HMAC-SHA1 header on every inbound request. Leave it unset (the default) to accept all messages without validation — suitable for local development.
 
-See [Docker instructions](https://mailpit.axllent.org/docs/install/docker/) for 386, amd64 & arm64 images.
+## Building
 
+Requires Go 1.21+ and Node 22+.
 
-### Compile from source
+```bash
+make run     # build UI + binary and run with dev defaults
+make install # build UI + binary and install to $GOPATH/bin
+make test    # run Go test suite
+make ui      # build frontend assets only
+make build   # compile the binary only (requires ui assets)
+```
 
-To build Mailpit from source, see [Building from source](https://mailpit.axllent.org/docs/install/source/).
+## Configuration
 
+All flags can also be set via environment variables (e.g. `--smtp` → `MP_SMTP_BIND_ADDR`, `--sms` → `MP_SMS_BIND_ADDR`).
 
-## Usage
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--smtp` | `0.0.0.0:1025` | SMTP bind address |
+| `--sms` | `0.0.0.0:1775` | SMS ingest bind address |
+| `--listen` | `0.0.0.0:8025` | HTTP UI/API bind address |
+| `--db` | *(in-memory)* | SQLite database file path |
 
-Run `mailpit -h` to see options. More information can be seen in [the docs](https://mailpit.axllent.org/docs/configuration/runtime-options/).
+Run `messagepit --help` for the full list.
 
-If installed using homebrew, you may run `brew services start mailpit` to always run mailpit automatically.
+## API
 
+The REST API is documented at [http://localhost:8025/api/v1](http://localhost:8025/api/v1).
 
-### Testing Mailpit
+SMS endpoints:
 
-Please refer to [the documentation](https://mailpit.axllent.org/docs/install/testing/) on how to easily test email delivery to Mailpit.
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/sms/messages` | List SMS messages |
+| GET | `/api/v1/sms/message/{id}` | Get single SMS message |
+| PUT | `/api/v1/sms/message/{id}/read` | Mark as read |
+| DELETE | `/api/v1/sms/message/{id}` | Delete message |
+| DELETE | `/api/v1/sms/messages` | Delete all messages |
 
+## Docker
 
-### Configuring sendmail
+Images are published to the GitHub Container Registry on every push to `main` and on tagged releases:
 
-Mailpit's SMTP server (default on port 1025), so you will likely need to configure your sending application to deliver mail via that port. 
-A common MTA (Mail Transfer Agent) that delivers system emails to an SMTP server is `sendmail`, used by many applications, including PHP. 
-Mailpit can also act as substitute for sendmail. For instructions on how to set this up, please refer to the [sendmail documentation](https://mailpit.axllent.org/docs/install/sendmail/).
+```bash
+docker pull ghcr.io/coreydaley/messagepit:latest
+```
 
----
+### docker-compose example
 
-<p align="center">
-  For team features, multiple inboxes, and a hosted setup, try
-  <a href="https://mailtrap.io/?ref=mailpit">Mailtrap</a>, our friendly companion.
-</p>
+```yaml
+services:
+  messagepit:
+    image: ghcr.io/coreydaley/messagepit:latest
+    ports:
+      - "1025:1025"   # SMTP
+      - "1775:1775"   # SMS ingest
+      - "8025:8025"   # Web UI
+    environment:
+      MP_DATABASE: /data/messagepit.db
+    volumes:
+      - messagepit_data:/data
+
+volumes:
+  messagepit_data:
+```
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+Portions of this project are derived from [Mailpit](https://github.com/axllent/mailpit) by Ralph Slooten, also MIT licensed.

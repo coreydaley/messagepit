@@ -9,8 +9,8 @@ import (
 	"net/mail"
 	"os"
 
-	"github.com/axllent/mailpit/internal/logger"
-	"github.com/axllent/mailpit/internal/tools"
+	"github.com/coreydaley/messagepit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/tools"
 	"github.com/jhillyerd/enmime/v2"
 	"github.com/leporo/sqlf"
 )

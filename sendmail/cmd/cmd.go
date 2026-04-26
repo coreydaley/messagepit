@@ -24,8 +24,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/axllent/mailpit/config"
-	"github.com/axllent/mailpit/internal/logger"
+	"github.com/coreydaley/messagepit/config"
+	"github.com/coreydaley/messagepit/internal/logger"
 	"github.com/mneis/go-telnet"
 	flag "github.com/spf13/pflag"
 )
@@ -62,7 +62,7 @@ func init() {
 	}
 }
 
-// Run the Mailpit sendmail replacement.
+// Run the MessagePit sendmail replacement.
 func Run() {
 	var recipients []string
 
@@ -187,11 +187,11 @@ func Run() {
 
 // HelpTemplate returns a string of the help
 func HelpTemplate(args []string) string {
-	return fmt.Sprintf(`A sendmail command replacement for Mailpit (%s)
+	return fmt.Sprintf(`A sendmail command replacement for MessagePit (%s)
 
 Usage: %s [flags] [recipients] < message
 
-See: https://github.com/axllent/mailpit
+See: https://github.com/coreydaley/messagepit
 
 Flags:
   -S  string  SMTP server address (default "localhost:1025")

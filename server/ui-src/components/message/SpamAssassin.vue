@@ -240,7 +240,7 @@ export default {
 							>
 								<div class="accordion-body">
 									<p>
-										Mailpit integrates with SpamAssassin to provide you with some insight into the
+										MessagePit integrates with SpamAssassin to provide you with some insight into the
 										"spamminess" of your messages. It sends your complete message (including any
 										attachments) to a running SpamAssassin server and then displays the results
 										returned by SpamAssassin.
@@ -299,7 +299,7 @@ export default {
 							>
 								<div class="accordion-body">
 									<p>
-										Mailpit does not manipulate the results nor determine the "spamminess" of your
+										MessagePit does not manipulate the results nor determine the "spamminess" of your
 										message. The result is what SpamAssassin returns, and it entirely dependent on
 										how SpamAssassin is set up and optionally trained.
 									</p>

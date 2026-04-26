@@ -11,11 +11,11 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/axllent/mailpit/config"
-	"github.com/axllent/mailpit/internal/logger"
-	"github.com/axllent/mailpit/internal/storage"
-	"github.com/axllent/mailpit/internal/tools"
-	"github.com/axllent/mailpit/server/apiv1"
+	"github.com/coreydaley/messagepit/config"
+	"github.com/coreydaley/messagepit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/storage"
+	"github.com/coreydaley/messagepit/internal/tools"
+	"github.com/coreydaley/messagepit/server/apiv1"
 )
 
 var (
@@ -26,7 +26,7 @@ var (
 	// Base URL of mailpit instance
 	base string
 
-	// URL is the base URL of a remove Mailpit instance
+	// URL is the base URL of a remote MessagePit instance
 	URL string
 
 	summary = []storage.MessageSummary{}

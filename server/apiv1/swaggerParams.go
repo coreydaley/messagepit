@@ -1,4 +1,4 @@
-// Package apiv1 provides the API v1 endpoints for Mailpit.
+// Package apiv1 provides the API v1 endpoints for MessagePit.
 //
 // These structs are for the purpose of defining swagger HTTP parameters in go-swagger
 // in order to generate a spec file. They are lowercased to avoid exporting them as public types.
@@ -6,7 +6,7 @@
 //nolint:unused
 package apiv1
 
-import "github.com/axllent/mailpit/internal/smtpd/chaos"
+import "github.com/coreydaley/messagepit/internal/smtpd/chaos"
 
 // swagger:parameters setChaosParams
 type setChaosParams struct {
@@ -306,7 +306,7 @@ type sendMessageParams struct {
 			ContentID string
 		}
 
-		// Mailpit tags
+		// MessagePit tags
 		// example: ["Tag 1","Tag 2"]
 		Tags []string
 
@@ -399,6 +399,57 @@ type spamAssassinCheckParams struct {
 	// required: true
 	ID string
 }
+
+// swagger:parameters GetSMSMessagesParams
+type getSMSMessagesParams struct {
+	// Pagination offset
+	//
+	// in: query
+	// name: start
+	// required: false
+	// default: 0
+	// type: integer
+	Start int `json:"start"`
+
+	// Limit number of results
+	//
+	// in: query
+	// name: limit
+	// required: false
+	// default: 50
+	// type: integer
+	Limit int `json:"limit"`
+}
+
+// swagger:parameters GetSMSMessageParams
+type getSMSMessageParams struct {
+	// SMS message database ID
+	//
+	// in: path
+	// required: true
+	ID string
+}
+
+// swagger:parameters MarkSMSReadParams
+type markSMSReadParams struct {
+	// SMS message database ID
+	//
+	// in: path
+	// required: true
+	ID string
+}
+
+// swagger:parameters DeleteSMSMessageParams
+type deleteSMSMessageParams struct {
+	// SMS message database ID
+	//
+	// in: path
+	// required: true
+	ID string
+}
+
+// swagger:parameters DeleteAllSMSParams
+type deleteAllSMSParams struct{}
 
 // swagger:parameters ThumbnailParams
 type thumbnailParams struct {

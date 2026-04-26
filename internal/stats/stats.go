@@ -1,4 +1,4 @@
-// Package stats stores and returns Mailpit statistics
+// Package stats stores and returns MessagePit statistics
 package stats
 
 import (
@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/axllent/mailpit/config"
-	"github.com/axllent/mailpit/internal/logger"
-	"github.com/axllent/mailpit/internal/storage"
-	"github.com/axllent/mailpit/internal/tools"
+	"github.com/coreydaley/messagepit/config"
+	"github.com/coreydaley/messagepit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/storage"
+	"github.com/coreydaley/messagepit/internal/tools"
 )
 
 // Stores cached version  along with its expiry time and error count.
@@ -27,7 +27,7 @@ var (
 	// Version cache storing the latest GitHub version
 	vCache versionCache
 
-	// StartedAt is set to the current ime when Mailpit starts
+	// StartedAt is set to the current time when MessagePit starts
 	startedAt time.Time
 
 	// sync mutex to prevent race condition with simultaneous requests
@@ -42,9 +42,9 @@ var (
 // AppInformation struct
 // swagger:model AppInformation
 type AppInformation struct {
-	// Current Mailpit version
+	// Current MessagePit version
 	Version string
-	// Latest Mailpit version
+	// Latest MessagePit version
 	LatestVersion string
 	// Database path
 	Database string
@@ -58,7 +58,7 @@ type AppInformation struct {
 	Tags map[string]int64
 	// Runtime statistics
 	RuntimeStats struct {
-		// Mailpit server uptime in seconds
+		// MessagePit server uptime in seconds
 		Uptime uint64
 		// Current memory usage in bytes
 		Memory uint64

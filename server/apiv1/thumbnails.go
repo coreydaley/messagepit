@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/axllent/mailpit/internal/logger"
-	"github.com/axllent/mailpit/internal/storage"
+	"github.com/coreydaley/messagepit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/storage"
 	"github.com/gorilla/mux"
 	"github.com/jhillyerd/enmime/v2"
 	"github.com/kovidgoyal/imaging"
