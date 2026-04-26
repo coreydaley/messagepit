@@ -10,9 +10,9 @@ import (
 
 // SMSMessagesSummary is the response shape for the SMS message list endpoint.
 type SMSMessagesSummary struct {
-	Total    uint64                    `json:"total"`
-	Unread   uint64                    `json:"unread"`
-	Start    int                       `json:"start"`
+	Total    uint64                      `json:"total"`
+	Unread   uint64                      `json:"unread"`
+	Start    int                         `json:"start"`
 	Messages []storage.SMSMessageSummary `json:"messages"`
 }
 
