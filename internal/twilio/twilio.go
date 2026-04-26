@@ -20,22 +20,22 @@ import (
 
 // twilioMessageResponse mirrors the shape of a real Twilio Messages API response.
 type twilioMessageResponse struct {
-	SID         string `json:"sid"`
-	AccountSID  string `json:"account_sid"`
-	From        string `json:"from"`
-	To          string `json:"to"`
-	Body        string `json:"body"`
-	Status      string `json:"status"`
-	Direction   string `json:"direction"`
-	NumSegments string `json:"num_segments"`
-	Price       string `json:"price"`
-	PriceUnit   string `json:"price_unit"`
-	ErrorCode   any    `json:"error_code"`
-	ErrorMessage any   `json:"error_message"`
-	DateCreated string `json:"date_created"`
-	DateUpdated string `json:"date_updated"`
-	DateSent    any    `json:"date_sent"`
-	URI         string `json:"uri"`
+	SID          string `json:"sid"`
+	AccountSID   string `json:"account_sid"`
+	From         string `json:"from"`
+	To           string `json:"to"`
+	Body         string `json:"body"`
+	Status       string `json:"status"`
+	Direction    string `json:"direction"`
+	NumSegments  string `json:"num_segments"`
+	Price        string `json:"price"`
+	PriceUnit    string `json:"price_unit"`
+	ErrorCode    any    `json:"error_code"`
+	ErrorMessage any    `json:"error_message"`
+	DateCreated  string `json:"date_created"`
+	DateUpdated  string `json:"date_updated"`
+	DateSent     any    `json:"date_sent"`
+	URI          string `json:"uri"`
 }
 
 // CreateMessage handles POST /2010-04-01/Accounts/{AccountSid}/Messages.json
