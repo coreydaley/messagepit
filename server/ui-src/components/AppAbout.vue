@@ -245,7 +245,8 @@ export default {
 						<p class="text-muted small mb-0 me-auto">
 							Based on the excellent work of
 							<a href="https://github.com/axllent/mailpit" target="_blank" class="text-muted">Mailpit</a>
-							by <a href="https://github.com/axllent" target="_blank" class="text-muted">Ralph Slooten</a>.
+							by
+							<a href="https://github.com/axllent" target="_blank" class="text-muted">Ralph Slooten</a>.
 						</p>
 						<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
 					</div>
@@ -270,8 +271,8 @@ export default {
 						<p class="h4">Get browser notifications when MessagePit receives new messages?</p>
 						<p>
 							Note that your browser will ask you for confirmation when you click
-							<code>enable notifications</code>, and that you must have MessagePit open in a browser tab to
-							be able to receive the notifications.
+							<code>enable notifications</code>, and that you must have MessagePit open in a browser tab
+							to be able to receive the notifications.
 						</p>
 					</div>
 					<div class="modal-footer">

@@ -81,20 +81,25 @@ export default {
 		loadMessage() {
 			this.message = false;
 			const id = this.$route.params.id;
-			this.get(this.resolve(`/api/v1/sms/message/${id}`), false, (response) => {
-				this.errorMessage = false;
-				this.message = response.data;
-				if (!this.message.Read) {
-					this.put(this.resolve(`/api/v1/sms/message/${id}/read`), {}, () => {
-						this.message.Read = true;
-						this.handleWSUpdate({ ID: id, Read: true });
-						if (smsStore.unread > 0) smsStore.unread--;
-					});
-				}
-				this.$nextTick(() => this.scrollSidebarToCurrent());
-			}, () => {
-				this.errorMessage = "Message not found";
-			});
+			this.get(
+				this.resolve(`/api/v1/sms/message/${id}`),
+				false,
+				(response) => {
+					this.errorMessage = false;
+					this.message = response.data;
+					if (!this.message.Read) {
+						this.put(this.resolve(`/api/v1/sms/message/${id}/read`), {}, () => {
+							this.message.Read = true;
+							this.handleWSUpdate({ ID: id, Read: true });
+							if (smsStore.unread > 0) smsStore.unread--;
+						});
+					}
+					this.$nextTick(() => this.scrollSidebarToCurrent());
+				},
+				() => {
+					this.errorMessage = "Message not found";
+				},
+			);
 		},
 
 		loadMessagesList() {

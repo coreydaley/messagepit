@@ -240,8 +240,8 @@ export default {
 							>
 								<div class="accordion-body">
 									<p>
-										MessagePit integrates with SpamAssassin to provide you with some insight into the
-										"spamminess" of your messages. It sends your complete message (including any
+										MessagePit integrates with SpamAssassin to provide you with some insight into
+										the "spamminess" of your messages. It sends your complete message (including any
 										attachments) to a running SpamAssassin server and then displays the results
 										returned by SpamAssassin.
 									</p>
@@ -299,9 +299,9 @@ export default {
 							>
 								<div class="accordion-body">
 									<p>
-										MessagePit does not manipulate the results nor determine the "spamminess" of your
-										message. The result is what SpamAssassin returns, and it entirely dependent on
-										how SpamAssassin is set up and optionally trained.
+										MessagePit does not manipulate the results nor determine the "spamminess" of
+										your message. The result is what SpamAssassin returns, and it entirely dependent
+										on how SpamAssassin is set up and optionally trained.
 									</p>
 									<p>
 										This tool is simply provided as an aid to assist you. If you are running your

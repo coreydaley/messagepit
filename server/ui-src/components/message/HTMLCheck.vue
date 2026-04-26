@@ -628,10 +628,11 @@ export default {
 										<p>
 											CSS properties such as <code>@font-face</code>, <code>:visited</code>,
 											<code>:hover</code> etc cannot be inlined however, so these are searched for
-											within CSS blocks. This method is not accurate as MessagePit does not know how
-											many nodes it actually applies to, if any, so they are weighted lightly (5%)
-											as not to affect the score. An example of this would be any email linking to
-											the full bootstrap CSS which contains dozens of unused attributes.
+											within CSS blocks. This method is not accurate as MessagePit does not know
+											how many nodes it actually applies to, if any, so they are weighted lightly
+											(5%) as not to affect the score. An example of this would be any email
+											linking to the full bootstrap CSS which contains dozens of unused
+											attributes.
 										</p>
 										<p>
 											All warnings are displayed with their respective support, including any
@@ -666,11 +667,11 @@ export default {
 											determine the relevance of a single test to the entire email.
 										</p>
 										<p>
-											For each test, MessagePit calculates both the unsupported & partially-supported
-											percentages in relation to the number of matches against the total number of
-											nodes (elements) in the HTML. The maximum unsupported and
-											partially-supported weighted scores are then used for the final score (ie:
-											worst case scenario).
+											For each test, MessagePit calculates both the unsupported &
+											partially-supported percentages in relation to the number of matches against
+											the total number of nodes (elements) in the HTML. The maximum unsupported
+											and partially-supported weighted scores are then used for the final score
+											(ie: worst case scenario).
 										</p>
 										<p>
 											To try explain this logic in very simple terms: Assuming a
