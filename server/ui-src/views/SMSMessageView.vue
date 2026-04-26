@@ -310,7 +310,6 @@ export default {
 
 						<div class="card">
 							<div class="card-body">
-								<!-- eslint-disable-next-line vue/no-v-html -->
 								<p
 									class="mb-0 privacy"
 									style="white-space: pre-wrap"

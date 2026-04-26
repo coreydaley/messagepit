@@ -27,6 +27,9 @@ export default [
 	/* Our custom rules */
 	{
 		rules: {
+			/* v-html is allowed when output is sanitized (e.g. linkify() escapes HTML first) */
+			"vue/no-v-html": "off",
+
 			/* Always use arrow functions for tidiness and consistency */
 			"prefer-arrow-callback": "error",
 
