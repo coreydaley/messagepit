@@ -199,6 +199,16 @@ func Store(body *[]byte, username *string) (string, error) {
 	broadcast("new", c)
 	sendWebhook(c)
 
+	if config.EmailWebhookURL != "" {
+		if notifID := env.GetHeader("X-Notification-Id"); notifID != "" {
+			toEmail := ""
+			if len(obj.To) > 0 {
+				toEmail = obj.To[0].Address
+			}
+			go fireEmailWebhook(notifID, toEmail)
+		}
+	}
+
 	dbLastAction = time.Now()
 
 	BroadcastMailboxStats()

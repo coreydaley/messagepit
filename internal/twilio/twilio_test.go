@@ -39,30 +39,7 @@ func makeRequest(t *testing.T, accountSID string, form url.Values, authToken str
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	if authToken != "" {
-		// Compute valid Twilio signature
-		fullURL := "http://" + req.Host + req.URL.RequestURI()
-		keys := make([]string, 0, len(form))
-		for k := range form {
-			keys = append(keys, k)
-		}
-		// sort keys
-		for i := 0; i < len(keys); i++ {
-			for j := i + 1; j < len(keys); j++ {
-				if keys[i] > keys[j] {
-					keys[i], keys[j] = keys[j], keys[i]
-				}
-			}
-		}
-		var sb strings.Builder
-		sb.WriteString(fullURL)
-		for _, k := range keys {
-			sb.WriteString(k)
-			sb.WriteString(form.Get(k))
-		}
-		mac := hmac.New(sha1.New, []byte(authToken))
-		mac.Write([]byte(sb.String())) // #nosec G104
-		sig := base64.StdEncoding.EncodeToString(mac.Sum(nil))
-		req.Header.Set("X-Twilio-Signature", sig)
+		req.SetBasicAuth(accountSID, authToken)
 	}
 
 	// populate ParseForm data

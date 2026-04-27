@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/coreydaley/messagepit/config"
 	"github.com/coreydaley/messagepit/internal/logger"
@@ -34,7 +35,7 @@ type twilioMessageResponse struct {
 	ErrorMessage any    `json:"error_message"`
 	DateCreated  string `json:"date_created"`
 	DateUpdated  string `json:"date_updated"`
-	DateSent     any    `json:"date_sent"`
+	DateSent     any    `json:"date_sent,omitempty"`
 	URI          string `json:"uri"`
 }
 
@@ -49,11 +50,13 @@ func CreateMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate Twilio signature if an auth token is configured
+	// Validate using HTTP Basic Auth (username=AccountSID, password=AuthToken) —
+	// the pattern the Twilio Messages API uses for outbound sends.
 	if config.TwilioAuthToken != "" {
-		if !validSignature(r, config.TwilioAuthToken) {
-			logger.Log().Warnf("[twilio] invalid signature from %s", r.RemoteAddr)
-			httpError(w, http.StatusForbidden, "invalid Twilio signature")
+		_, password, ok := r.BasicAuth()
+		if !ok || password != config.TwilioAuthToken {
+			logger.Log().Warnf("[twilio] invalid credentials from %s", r.RemoteAddr)
+			httpError(w, http.StatusForbidden, "invalid credentials")
 			return
 		}
 	}
@@ -74,6 +77,15 @@ func CreateMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Prefer the per-request StatusCallback URL (mirrors real Twilio behaviour),
+	// fall back to the globally configured MP_SMS_WEBHOOK_URL.
+	callbackURL := strings.TrimSpace(r.FormValue("StatusCallback"))
+	if callbackURL == "" {
+		callbackURL = config.SMSWebhookURL
+	}
+	fireSMSCallback(id, to, from, callbackURL)
+
+	now := time.Now().UTC().Format(time.RFC1123Z)
 	resp := twilioMessageResponse{
 		SID:          id,
 		AccountSID:   accountSID,
@@ -87,6 +99,8 @@ func CreateMessage(w http.ResponseWriter, r *http.Request) {
 		PriceUnit:    "USD",
 		ErrorCode:    nil,
 		ErrorMessage: nil,
+		DateCreated:  now,
+		DateUpdated:  now,
 		URI:          fmt.Sprintf("/2010-04-01/Accounts/%s/Messages/%s.json", accountSID, id),
 	}
 
@@ -133,6 +147,62 @@ func validSignature(r *http.Request, authToken string) bool {
 	expected := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 
 	return hmac.Equal([]byte(signature), []byte(expected))
+}
+
+// fireSMSCallback posts a Twilio-style delivery status callback to callbackURL.
+// The call is non-blocking; errors are logged but not propagated.
+func fireSMSCallback(sid, to, from, callbackURL string) {
+	if callbackURL == "" {
+		return
+	}
+	go func() {
+		params := url.Values{
+			"MessageSid":    {sid},
+			"MessageStatus": {"delivered"},
+			"To":            {to},
+			"From":          {from},
+		}
+		body := params.Encode()
+		req, err := http.NewRequest("POST", callbackURL, strings.NewReader(body))
+		if err != nil {
+			logger.Log().Errorf("[sms-callback] failed to build request: %s", err)
+			return
+		}
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		if config.TwilioAuthToken != "" {
+			req.Header.Set("X-Twilio-Signature", smsCallbackSignature(callbackURL, params, config.TwilioAuthToken))
+		}
+		client := &http.Client{Timeout: 5 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			logger.Log().Errorf("[sms-callback] error: %s", err)
+			return
+		}
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode < 200 || resp.StatusCode > 299 {
+			logger.Log().Warnf("[sms-callback] %s returned %d", callbackURL, resp.StatusCode)
+		} else {
+			logger.Log().Debugf("[sms-callback] delivery callback sent for %s", sid)
+		}
+	}()
+}
+
+// smsCallbackSignature computes the Twilio request signature for an outgoing status callback.
+func smsCallbackSignature(rawURL string, params url.Values, authToken string) string {
+	keys := make([]string, 0, len(params))
+	for k := range params {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var sb strings.Builder
+	sb.WriteString(rawURL)
+	for _, k := range keys {
+		sb.WriteString(k)
+		sb.WriteString(params.Get(k))
+	}
+	mac := hmac.New(sha1.New, []byte(authToken)) // #nosec G401
+	mac.Write([]byte(sb.String()))               // #nosec G104
+	return base64.StdEncoding.EncodeToString(mac.Sum(nil))
 }
 
 func httpError(w http.ResponseWriter, status int, msg string) {

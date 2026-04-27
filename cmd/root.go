@@ -119,6 +119,10 @@ func init() {
 	// SMS ingest server
 	rootCmd.Flags().StringVar(&config.SMSListen, "sms", config.SMSListen, "SMS ingest bind interface and port")
 	rootCmd.Flags().StringVar(&config.TwilioAuthToken, "sms-auth-token", config.TwilioAuthToken, "Twilio auth token to validate X-Twilio-Signature on incoming SMS webhooks")
+	rootCmd.Flags().StringVar(&config.SMSWebhookURL, "sms-webhook-url", config.SMSWebhookURL, "POST Twilio-style delivery callback to this URL after capturing SMS")
+	rootCmd.Flags().StringVar(&config.SendGridAPIKey, "sendgrid-api-key", config.SendGridAPIKey, "Bearer token expected on POST /v3/mail/send (SendGrid API stub)")
+	rootCmd.Flags().StringVar(&config.EmailWebhookURL, "email-webhook-url", config.EmailWebhookURL, "POST SendGrid-style event webhook to this URL after capturing email")
+	rootCmd.Flags().StringVar(&config.EmailWebhookSigningKey, "email-webhook-signing-key", config.EmailWebhookSigningKey, "Base64-encoded SEC1 DER ECDSA P-256 private key for signing email webhook payloads (auto-generated if empty)")
 
 	// SMTP server
 	rootCmd.Flags().StringVarP(&config.SMTPListen, "smtp", "s", config.SMTPListen, "SMTP bind interface and port")
@@ -289,6 +293,18 @@ func initConfigFromEnv() {
 	}
 	if len(os.Getenv("MP_SMS_AUTH_TOKEN")) > 0 {
 		config.TwilioAuthToken = os.Getenv("MP_SMS_AUTH_TOKEN")
+	}
+	if len(os.Getenv("MP_SENDGRID_API_KEY")) > 0 {
+		config.SendGridAPIKey = os.Getenv("MP_SENDGRID_API_KEY")
+	}
+	if len(os.Getenv("MP_SMS_WEBHOOK_URL")) > 0 {
+		config.SMSWebhookURL = os.Getenv("MP_SMS_WEBHOOK_URL")
+	}
+	if len(os.Getenv("MP_EMAIL_WEBHOOK_URL")) > 0 {
+		config.EmailWebhookURL = os.Getenv("MP_EMAIL_WEBHOOK_URL")
+	}
+	if len(os.Getenv("MP_EMAIL_WEBHOOK_SIGNING_KEY")) > 0 {
+		config.EmailWebhookSigningKey = os.Getenv("MP_EMAIL_WEBHOOK_SIGNING_KEY")
 	}
 
 	// SMTP server

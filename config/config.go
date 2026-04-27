@@ -2,6 +2,11 @@
 package config
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net"
@@ -207,6 +212,10 @@ var (
 	// POP3TLSKey TLS certificate key
 	POP3TLSKey string
 
+	// SendGridAPIKey is the expected Bearer token for the SendGrid v3 /v3/mail/send endpoint.
+	// When empty, authentication is skipped (suitable for local development without auth).
+	SendGridAPIKey string
+
 	// TwilioAuthToken is the Twilio auth token used to validate incoming request signatures.
 	// When set, requests to the Twilio SMS ingest endpoint must include a valid X-Twilio-Signature header.
 	// When empty, signature validation is skipped (suitable for local development).
@@ -220,6 +229,22 @@ var (
 
 	// WebhookURL for calling
 	WebhookURL string
+
+	// SMSWebhookURL is the URL to POST Twilio-style status callbacks after capturing an SMS.
+	// When set, MessagePit fires a delivery callback signed with TwilioAuthToken (if set).
+	SMSWebhookURL string
+
+	// EmailWebhookURL is the URL to POST SendGrid-style event webhooks after capturing an email.
+	// When set, MessagePit fires a "delivered" event signed with the ECDSA key.
+	EmailWebhookURL string
+
+	// EmailWebhookSigningKey is a base64-encoded SEC1 DER ECDSA P-256 private key used to
+	// sign email event webhook payloads. If empty and EmailWebhookURL is set, a one-time key
+	// pair is generated at startup and the public key is logged.
+	EmailWebhookSigningKey string
+
+	// emailWebhookKey is the parsed or generated ECDSA private key, set during VerifyConfig.
+	emailWebhookKey *ecdsa.PrivateKey
 
 	// ContentSecurityPolicy for HTTP server - set via VerifyConfig()
 	ContentSecurityPolicy string
@@ -243,6 +268,12 @@ var (
 	// DemoMode disables SMTP relay, link checking & HTTP send functionality
 	DemoMode = false
 )
+
+// EmailWebhookPrivateKey returns the ECDSA private key used to sign email event webhook payloads.
+// Returns nil if no email webhook URL is configured.
+func EmailWebhookPrivateKey() *ecdsa.PrivateKey {
+	return emailWebhookKey
+}
 
 // AutoTag struct for auto-tagging
 type autoTag struct {
@@ -570,6 +601,37 @@ func VerifyConfig() error {
 
 	if WebhookURL != "" && !isValidURL(WebhookURL) {
 		return fmt.Errorf("webhook URL does not appear to be a valid URL (%s)", WebhookURL)
+	}
+
+	if SMSWebhookURL != "" && !isValidURL(SMSWebhookURL) {
+		return fmt.Errorf("SMS webhook URL does not appear to be a valid URL (%s)", SMSWebhookURL)
+	}
+
+	if EmailWebhookURL != "" {
+		if !isValidURL(EmailWebhookURL) {
+			return fmt.Errorf("email webhook URL does not appear to be a valid URL (%s)", EmailWebhookURL)
+		}
+		if EmailWebhookSigningKey != "" {
+			der, err := base64.StdEncoding.DecodeString(EmailWebhookSigningKey)
+			if err != nil {
+				return fmt.Errorf("[email-webhook] signing key is not valid base64: %s", err)
+			}
+			emailWebhookKey, err = x509.ParseECPrivateKey(der)
+			if err != nil {
+				return fmt.Errorf("[email-webhook] signing key is not a valid EC private key: %s", err)
+			}
+		} else {
+			var err error
+			emailWebhookKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+			if err != nil {
+				return fmt.Errorf("[email-webhook] failed to generate signing key: %s", err)
+			}
+			pubDER, err := x509.MarshalPKIXPublicKey(&emailWebhookKey.PublicKey)
+			if err != nil {
+				return fmt.Errorf("[email-webhook] failed to marshal public key: %s", err)
+			}
+			logger.Log().Infof("[email-webhook] generated signing key — set SENDGRID_WEBHOOK_PUBLIC_KEY=%s in Rails", base64.StdEncoding.EncodeToString(pubDER))
+		}
 	}
 
 	// DEPRECATED 2024/04/13

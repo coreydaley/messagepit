@@ -25,6 +25,7 @@ import (
 	"github.com/coreydaley/messagepit/internal/stats"
 	"github.com/coreydaley/messagepit/internal/storage"
 	"github.com/coreydaley/messagepit/internal/tools"
+	"github.com/coreydaley/messagepit/internal/sendgrid"
 	"github.com/coreydaley/messagepit/internal/twilio"
 	"github.com/coreydaley/messagepit/server/apiv1"
 	"github.com/coreydaley/messagepit/server/handlers"
@@ -69,6 +70,9 @@ func Listen() {
 	go pop3.Run()
 
 	r := apiRoutes()
+
+	// SendGrid v3 Mail Send API stub — no middleware, Bearer auth handled inside handler
+	r.HandleFunc("/v3/mail/send", sendgrid.CreateMessage).Methods("POST")
 
 	// kubernetes probes
 	r.HandleFunc(config.Webroot+"livez", handlers.HealthzHandler)
