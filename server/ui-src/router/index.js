@@ -5,6 +5,8 @@ import NotFoundView from "../views/NotFoundView.vue";
 import SearchView from "../views/SearchView.vue";
 import SMSMailboxView from "../views/SMSMailboxView.vue";
 import SMSMessageView from "../views/SMSMessageView.vue";
+import WebhooksView from "../views/WebhooksView.vue";
+import WebhookView from "../views/WebhookView.vue";
 
 const d = document.getElementById("app");
 let webroot = "/";
@@ -35,6 +37,14 @@ const router = createRouter({
 		{
 			path: "/sms/view/:id",
 			component: SMSMessageView,
+		},
+		{
+			path: "/webhooks",
+			component: WebhooksView,
+		},
+		{
+			path: "/webhooks/view/:id",
+			component: WebhookView,
 		},
 		{
 			path: "/:pathMatch(.*)*",

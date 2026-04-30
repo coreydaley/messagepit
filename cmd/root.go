@@ -49,6 +49,7 @@ Documentation:
 
 		go server.Listen()
 		go server.ListenSMS()
+		go server.ListenWebhookCapture()
 
 		if err := smtpd.Listen(); err != nil {
 			storage.Close()
@@ -118,6 +119,9 @@ func init() {
 
 	// SMS ingest server
 	rootCmd.Flags().StringVar(&config.SMSListen, "sms", config.SMSListen, "SMS ingest bind interface and port")
+
+	// Webhook capture server
+	rootCmd.Flags().StringVar(&config.WebhookCaptureListen, "webhook", config.WebhookCaptureListen, "HTTP webhook capture bind interface and port (empty to disable)")
 	rootCmd.Flags().StringVar(&config.TwilioAuthToken, "sms-auth-token", config.TwilioAuthToken, "Twilio auth token to validate X-Twilio-Signature on incoming SMS webhooks")
 	rootCmd.Flags().StringVar(&config.SMSWebhookURL, "sms-webhook-url", config.SMSWebhookURL, "POST Twilio-style delivery callback to this URL after capturing SMS")
 	rootCmd.Flags().StringVar(&config.SendGridAPIKey, "sendgrid-api-key", config.SendGridAPIKey, "Bearer token expected on POST /v3/mail/send (SendGrid API stub)")
@@ -290,6 +294,11 @@ func initConfigFromEnv() {
 	// SMS ingest server
 	if len(os.Getenv("MP_SMS_BIND_ADDR")) > 0 {
 		config.SMSListen = os.Getenv("MP_SMS_BIND_ADDR")
+	}
+
+	// Webhook capture server
+	if v := os.Getenv("MP_WEBHOOK_BIND_ADDR"); v != "" {
+		config.WebhookCaptureListen = v
 	}
 	if len(os.Getenv("MP_SMS_AUTH_TOKEN")) > 0 {
 		config.TwilioAuthToken = os.Getenv("MP_SMS_AUTH_TOKEN")

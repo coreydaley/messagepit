@@ -160,6 +160,64 @@ type SMSMailboxStats struct {
 	Unread uint64
 }
 
+// WebhookRequest represents a captured inbound HTTP webhook request
+//
+// swagger:model WebhookRequest
+type WebhookRequest struct {
+	// Database ID
+	ID string
+	// HTTP method
+	Method string
+	// Request path
+	Path string
+	// Raw query string
+	Query string
+	// Request headers
+	Headers map[string][]string
+	// Request body as string
+	Body string
+	// Body size in bytes
+	BodySize int64
+	// Content-Type (without parameters)
+	ContentType string
+	// Source IP address
+	SourceIP string
+	// Read status
+	Read bool
+	// Received date & time
+	Created time.Time
+}
+
+// WebhookRequestSummary is used for list views and websocket broadcasts
+//
+// swagger:model WebhookRequestSummary
+type WebhookRequestSummary struct {
+	// Database ID
+	ID string
+	// HTTP method
+	Method string
+	// Request path
+	Path string
+	// Content-Type (without parameters)
+	ContentType string
+	// Source IP address
+	SourceIP string
+	// Body size in bytes
+	BodySize int64
+	// Body snippet (up to 250 chars)
+	Snippet string
+	// Read status
+	Read bool
+	// Received date & time
+	Created time.Time
+}
+
+// WebhookMailboxStats for quick total/unread lookups
+type WebhookMailboxStats struct {
+	Total  uint64
+	Unread uint64
+}
+
 // Metadata struct for storing message metadata
 type Metadata struct {
 	From     *mail.Address   `json:"From,omitempty"`

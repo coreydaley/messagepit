@@ -27,6 +27,7 @@ import (
 	"github.com/coreydaley/messagepit/internal/storage"
 	"github.com/coreydaley/messagepit/internal/tools"
 	"github.com/coreydaley/messagepit/internal/twilio"
+	"github.com/coreydaley/messagepit/internal/webhookd"
 	"github.com/coreydaley/messagepit/server/apiv1"
 	"github.com/coreydaley/messagepit/server/handlers"
 	"github.com/coreydaley/messagepit/server/webhook"
@@ -107,6 +108,8 @@ func Listen() {
 	r.Path(config.Webroot + "search").Handler(middleWareFunc(index)).Methods("GET")
 	r.Path(config.Webroot + "sms").Handler(middleWareFunc(index)).Methods("GET")
 	r.PathPrefix(config.Webroot + "sms/view/").Handler(middleWareFunc(index)).Methods("GET")
+	r.Path(config.Webroot + "webhooks").Handler(middleWareFunc(index)).Methods("GET")
+	r.PathPrefix(config.Webroot + "webhooks/view/").Handler(middleWareFunc(index)).Methods("GET")
 	r.Path(config.Webroot).Handler(middleWareFunc(index)).Methods("GET")
 
 	if auth.UICredentials != nil {
@@ -204,6 +207,30 @@ func ListenSMS() {
 	}
 }
 
+// ListenWebhookCapture starts the HTTP webhook capture server on config.WebhookCaptureListen.
+// It accepts requests on any path and method, storing each as a WebhookRequest.
+func ListenWebhookCapture() {
+	if config.WebhookCaptureListen == "" {
+		return
+	}
+
+	smux := http.NewServeMux()
+	smux.HandleFunc("/", webhookd.CaptureHandler)
+
+	server := &http.Server{
+		Addr:         config.WebhookCaptureListen,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		Handler:      smux,
+	}
+
+	logger.Log().Infof("[webhookd] starting on %s", config.WebhookCaptureListen)
+	if err := server.ListenAndServe(); err != nil {
+		storage.Close()
+		logger.Log().Fatal(err)
+	}
+}
+
 func apiRoutes() *mux.Router {
 	r := mux.NewRouter()
 
@@ -250,6 +277,12 @@ func apiRoutes() *mux.Router {
 	r.HandleFunc(config.Webroot+"api/v1/sms/message/{id}", middleWareFunc(apiv1.GetSMSMessage)).Methods("GET")
 	r.HandleFunc(config.Webroot+"api/v1/sms/message/{id}", middleWareFunc(apiv1.DeleteSMSMessage)).Methods("DELETE")
 	r.HandleFunc(config.Webroot+"api/v1/sms/message/{id}/read", middleWareFunc(apiv1.MarkSMSRead)).Methods("PUT")
+
+	// MessagePit Webhook API
+	r.HandleFunc(config.Webroot+"api/v1/webhooks", middleWareFunc(apiv1.GetWebhooks)).Methods("GET")
+	r.HandleFunc(config.Webroot+"api/v1/webhooks", middleWareFunc(apiv1.DeleteAllWebhooks)).Methods("DELETE")
+	r.HandleFunc(config.Webroot+"api/v1/webhook/{id}", middleWareFunc(apiv1.GetWebhook)).Methods("GET")
+	r.HandleFunc(config.Webroot+"api/v1/webhook/{id}", middleWareFunc(apiv1.DeleteWebhook)).Methods("DELETE")
 
 	// web UI websocket
 	r.HandleFunc(config.Webroot+"api/events", middleWareFunc(apiWebsocket)).Methods("GET")

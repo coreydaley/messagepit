@@ -492,6 +492,131 @@ func TestSendAPIAuthMiddleware(t *testing.T) {
 	})
 }
 
+func TestAPIv1Webhooks(t *testing.T) {
+	setup()
+	defer storage.Close()
+
+	r := apiRoutes()
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+
+	// empty list
+	data, err := clientGet(ts.URL + "/api/v1/webhooks")
+	if err != nil {
+		t.Fatalf("GET /api/v1/webhooks empty: %v", err)
+	}
+	resp := apiv1.WebhookRequestsSummary{}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		t.Fatalf("unmarshal empty list: %v", err)
+	}
+	if resp.Total != 0 {
+		t.Fatalf("expected 0 total, got %d", resp.Total)
+	}
+
+	// store a webhook directly
+	id, err := storage.StoreWebhook("POST", "/test", "foo=1", map[string][]string{
+		"Content-Type": {"application/json"},
+	}, []byte(`{"hello":"world"}`), "application/json", "127.0.0.1")
+	if err != nil {
+		t.Fatalf("StoreWebhook: %v", err)
+	}
+
+	// list now has one entry
+	data, err = clientGet(ts.URL + "/api/v1/webhooks")
+	if err != nil {
+		t.Fatalf("GET /api/v1/webhooks after insert: %v", err)
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		t.Fatalf("unmarshal list: %v", err)
+	}
+	if resp.Total != 1 {
+		t.Fatalf("expected total 1, got %d", resp.Total)
+	}
+	if resp.Unread != 1 {
+		t.Fatalf("expected unread 1, got %d", resp.Unread)
+	}
+	if len(resp.Messages) != 1 {
+		t.Fatalf("expected 1 message in list, got %d", len(resp.Messages))
+	}
+	if resp.Messages[0].Method != "POST" {
+		t.Fatalf("expected method POST, got %s", resp.Messages[0].Method)
+	}
+
+	// get detail — should auto-mark read
+	data, err = clientGet(ts.URL + "/api/v1/webhook/" + id)
+	if err != nil {
+		t.Fatalf("GET /api/v1/webhook/%s: %v", id, err)
+	}
+	detail := storage.WebhookRequest{}
+	if err := json.Unmarshal(data, &detail); err != nil {
+		t.Fatalf("unmarshal detail: %v", err)
+	}
+	if detail.ID != id {
+		t.Fatalf("expected ID %s, got %s", id, detail.ID)
+	}
+	if detail.Body != `{"hello":"world"}` {
+		t.Fatalf("unexpected body: %s", detail.Body)
+	}
+
+	// unread count should drop to 0 after GET detail
+	data, _ = clientGet(ts.URL + "/api/v1/webhooks")
+	_ = json.Unmarshal(data, &resp)
+	if resp.Unread != 0 {
+		t.Fatalf("expected unread 0 after reading detail, got %d", resp.Unread)
+	}
+
+	// 404 for unknown ID
+	req, _ := http.NewRequest("GET", ts.URL+"/api/v1/webhook/nonexistent", nil)
+	r404, _ := http.DefaultClient.Do(req)
+	_ = r404.Body.Close()
+	if r404.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 for unknown webhook, got %d", r404.StatusCode)
+	}
+
+	// delete single
+	if _, err := clientDelete(ts.URL+"/api/v1/webhook/"+id, ""); err != nil {
+		t.Fatalf("DELETE /api/v1/webhook/%s: %v", id, err)
+	}
+	data, _ = clientGet(ts.URL + "/api/v1/webhooks")
+	_ = json.Unmarshal(data, &resp)
+	if resp.Total != 0 {
+		t.Fatalf("expected 0 after delete, got %d", resp.Total)
+	}
+}
+
+func TestAPIv1WebhooksDeleteAll(t *testing.T) {
+	setup()
+	defer storage.Close()
+
+	r := apiRoutes()
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+
+	for i := range 5 {
+		path := "/hook/" + string(rune('a'+i))
+		if _, err := storage.StoreWebhook("POST", path, "", nil, []byte("body"), "text/plain", "127.0.0.1"); err != nil {
+			t.Fatalf("StoreWebhook: %v", err)
+		}
+	}
+
+	data, _ := clientGet(ts.URL + "/api/v1/webhooks")
+	resp := apiv1.WebhookRequestsSummary{}
+	_ = json.Unmarshal(data, &resp)
+	if resp.Total != 5 {
+		t.Fatalf("expected 5 before delete all, got %d", resp.Total)
+	}
+
+	if _, err := clientDelete(ts.URL+"/api/v1/webhooks", ""); err != nil {
+		t.Fatalf("DELETE /api/v1/webhooks: %v", err)
+	}
+
+	data, _ = clientGet(ts.URL + "/api/v1/webhooks")
+	_ = json.Unmarshal(data, &resp)
+	if resp.Total != 0 {
+		t.Fatalf("expected 0 after delete all, got %d", resp.Total)
+	}
+}
+
 func setup() {
 	logger.NoLogging = true
 	config.MaxMessages = 0

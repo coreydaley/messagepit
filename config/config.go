@@ -44,6 +44,10 @@ var (
 	// SMSListen is the bind address for the SMS ingest server.
 	SMSListen = "[::]:1775"
 
+	// WebhookCaptureListen is the bind address for the HTTP webhook capture server.
+	// When empty, the webhook capture server is disabled.
+	WebhookCaptureListen = "[::]:8026"
+
 	// HTTPListen to listen on <interface>:<port>
 	HTTPListen = "[::]:8025"
 
@@ -363,6 +367,11 @@ func VerifyConfig() error {
 	if SMSListen != "" {
 		if !re.MatchString(SMSListen) {
 			return errors.New("[sms] bind should be in the format of <ip>:<port>")
+		}
+	}
+	if WebhookCaptureListen != "" {
+		if !re.MatchString(WebhookCaptureListen) {
+			return errors.New("[webhookd] bind should be in the format of <ip>:<port>")
 		}
 	}
 	if _, _, isSocket := tools.UnixSocket(HTTPListen); !isSocket && !re.MatchString(HTTPListen) {

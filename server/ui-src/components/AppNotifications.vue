@@ -3,6 +3,7 @@ import CommonMixins from "../mixins/CommonMixins";
 import { Toast } from "bootstrap";
 import { mailbox } from "../stores/mailbox";
 import { smsStore } from "../stores/sms";
+import { webhooksStore } from "../stores/webhooks";
 import { pagination } from "../stores/pagination";
 
 export default {
@@ -16,6 +17,7 @@ export default {
 			pagination,
 			mailbox,
 			smsStore,
+			webhooksStore,
 			toastMessage: false,
 			reconnectRefresh: false,
 			socketURI: false,
@@ -126,6 +128,19 @@ export default {
 					smsStore.total = 0;
 					smsStore.unread = 0;
 					this.eventBus.emit("sms_truncate");
+				} else if (response.Type === "webhook" && response.Data) {
+					webhooksStore.total++;
+					if (!response.Data.Read) {
+						webhooksStore.unread++;
+					}
+					this.eventBus.emit("webhook", response.Data);
+				} else if (response.Type === "webhook_delete" && response.Data) {
+					webhooksStore.total = Math.max(0, webhooksStore.total - 1);
+					this.eventBus.emit("webhook_delete", response.Data);
+				} else if (response.Type === "webhook_truncate") {
+					webhooksStore.total = 0;
+					webhooksStore.unread = 0;
+					this.eventBus.emit("webhook_truncate");
 				} else if (response.Type === "error") {
 					// broadcast for components
 					this.addClientError(response.Data);

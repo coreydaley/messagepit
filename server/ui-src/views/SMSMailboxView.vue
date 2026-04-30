@@ -5,6 +5,7 @@ import CommonMixins from "../mixins/CommonMixins";
 import ListMessages from "../components/ListMessages.vue";
 import { mailbox } from "../stores/mailbox";
 import { smsStore } from "../stores/sms";
+import { webhooksStore } from "../stores/webhooks";
 
 export default {
 	components: {
@@ -21,6 +22,7 @@ export default {
 		return {
 			mailbox,
 			smsStore,
+			webhooksStore,
 		};
 	},
 
@@ -118,6 +120,13 @@ export default {
 					SMS
 					<span v-if="smsStore.unread" class="badge rounded-pill ms-1 text-bg-secondary">
 						{{ formatNumber(smsStore.unread) }}
+					</span>
+				</RouterLink>
+				<RouterLink to="/webhooks" class="nav-link text-white opacity-75 px-3">
+					<i class="bi bi-arrow-left-right me-1"></i>
+					Webhooks
+					<span v-if="webhooksStore.unread" class="badge rounded-pill ms-1 text-bg-secondary">
+						{{ formatNumber(webhooksStore.unread) }}
 					</span>
 				</RouterLink>
 			</div>

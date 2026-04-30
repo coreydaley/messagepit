@@ -6,6 +6,7 @@ import Notifications from "./components/AppNotifications.vue";
 import EditTags from "./components/EditTags.vue";
 import { mailbox } from "./stores/mailbox";
 import { smsStore } from "./stores/sms";
+import { webhooksStore } from "./stores/webhooks";
 
 export default {
 	components: {
@@ -40,6 +41,12 @@ export default {
 		this.get(this.resolve("/api/v1/sms/messages"), { limit: 1 }, (response) => {
 			smsStore.total = response.data.total;
 			smsStore.unread = response.data.unread;
+		});
+
+		// load initial webhook stats for badge display
+		this.get(this.resolve("/api/v1/webhooks"), { limit: 1 }, (response) => {
+			webhooksStore.total = response.data.total;
+			webhooksStore.unread = response.data.unread;
 		});
 	},
 };

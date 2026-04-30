@@ -10,6 +10,7 @@ import Pagination from "../components/NavPagination.vue";
 import SearchForm from "../components/SearchForm.vue";
 import { mailbox } from "../stores/mailbox";
 import { smsStore } from "../stores/sms";
+import { webhooksStore } from "../stores/webhooks";
 import { pagination } from "../stores/pagination";
 
 export default {
@@ -32,6 +33,7 @@ export default {
 		return {
 			mailbox,
 			smsStore,
+			webhooksStore,
 			delayedRefresh: false,
 			paginationDelayed: false, // for delayed pagination URL changes
 		};
@@ -199,6 +201,13 @@ export default {
 					SMS
 					<span v-if="smsStore.unread" class="badge rounded-pill ms-1 text-bg-secondary">
 						{{ formatNumber(smsStore.unread) }}
+					</span>
+				</RouterLink>
+				<RouterLink to="/webhooks" class="nav-link text-white opacity-75 px-3">
+					<i class="bi bi-arrow-left-right me-1"></i>
+					Webhooks
+					<span v-if="webhooksStore.unread" class="badge rounded-pill ms-1 text-bg-secondary">
+						{{ formatNumber(webhooksStore.unread) }}
 					</span>
 				</RouterLink>
 			</div>
