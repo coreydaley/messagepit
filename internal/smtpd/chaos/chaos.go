@@ -1,6 +1,6 @@
 // Package chaos is used to simulate Chaos engineering (random failures) in the SMTPD server.
 // See https://en.wikipedia.org/wiki/Chaos_engineering
-// See https://mailpit.axllent.org/docs/integration/chaos/
+// See https://github.com/coreydaley/messagepit#readme
 package chaos
 
 import (

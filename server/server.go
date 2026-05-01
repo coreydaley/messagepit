@@ -87,7 +87,7 @@ func Listen() {
 	r.PathPrefix(config.Webroot + "api/").Handler(middleWareFunc(embedController))
 	r.Path(config.Webroot + "favicon.ico").Handler(middleWareFunc(embedController))
 	r.Path(config.Webroot + "favicon.svg").Handler(middleWareFunc(embedController))
-	r.Path(config.Webroot + "mailpit.svg").Handler(middleWareFunc(embedController))
+	r.Path(config.Webroot + "messagepit.svg").Handler(middleWareFunc(embedController))
 	r.Path(config.Webroot + "notification.png").Handler(middleWareFunc(embedController))
 
 	// redirect to webroot if no trailing slash

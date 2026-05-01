@@ -1,4 +1,4 @@
-// Package dump is used to export all messages from mailpit into a directory
+// Package dump is used to export all messages from messagepit into a directory
 package dump
 
 import (
@@ -23,7 +23,7 @@ var (
 
 	outDir string
 
-	// Base URL of mailpit instance
+	// Base URL of messagepit instance
 	base string
 
 	// URL is the base URL of a remote MessagePit instance

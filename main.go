@@ -15,7 +15,7 @@ func main() {
 	if strings.Contains(strings.ToLower(filepath.Base(os.Args[0])), "send") {
 		sendmail.Run()
 	} else {
-		// else run mailpit
+		// else run messagepit
 		cmd.Execute()
 	}
 }

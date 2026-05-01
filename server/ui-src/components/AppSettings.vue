@@ -310,7 +310,7 @@ export default {
 							<p class="my-3">
 								<b>Chaos</b> allows you to set random SMTP failures and response codes at various stages
 								in a SMTP transaction to test application resilience (<a
-									href="https://mailpit.axllent.org/docs/integration/chaos/"
+									href="https://github.com/coreydaley/messagepit#readme"
 									target="_blank"
 								>
 									see documentation </a

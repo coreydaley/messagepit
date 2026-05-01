@@ -100,7 +100,7 @@ func Run() {
 	// allow recipients to be passed as an argument
 	recipients = flag.Args()
 
-	// if run via `mailpit sendmail ...` then remove `sendmail` from "recipients"
+	// if run via `messagepit sendmail ...` then remove `sendmail` from "recipients"
 	if len(recipients) > 0 && recipients[0] == "sendmail" {
 		recipients = recipients[1:]
 	}

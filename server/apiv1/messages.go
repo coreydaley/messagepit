@@ -211,7 +211,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	//
 	// # Search messages
 	//
-	// Returns messages matching [a search](https://mailpit.axllent.org/docs/usage/search-filters/), sorted by received date (descending).
+	// Returns messages matching a search query, sorted by received date (descending).
 	//
 	//	Produces:
 	//	  - application/json
@@ -268,7 +268,7 @@ func DeleteSearch(w http.ResponseWriter, r *http.Request) {
 	//
 	// # Delete messages by search
 	//
-	// Delete all messages matching [a search](https://mailpit.axllent.org/docs/usage/search-filters/).
+	// Delete all messages matching a search query.
 	//
 	//	Produces:
 	//	  - application/json
