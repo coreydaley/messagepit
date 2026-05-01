@@ -1,12 +1,10 @@
-<script>
-export default {
-	props: {
-		loading: {
-			type: Number,
-			default: 0,
-		},
+<script setup>
+defineProps({
+	loading: {
+		type: Number,
+		default: 0,
 	},
-};
+});
 </script>
 
 <template>

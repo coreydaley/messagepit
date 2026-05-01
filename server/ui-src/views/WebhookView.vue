@@ -1,257 +1,240 @@
-<script>
+<script setup>
+import { ref, computed, watch, onMounted, onUnmounted, inject, nextTick } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import About from "../components/AppAbout.vue";
 import AjaxLoader from "../components/AjaxLoader.vue";
-import CommonMixins from "../mixins/CommonMixins";
+import { useCommon } from "../composables/useCommon";
 import { webhooksStore } from "../stores/webhooks";
 import dayjs from "dayjs";
 
-export default {
-	components: {
-		About,
-		AjaxLoader,
-	},
+const route = useRoute();
+const router = useRouter();
+const eventBus = inject("eventBus");
 
-	mixins: [CommonMixins],
+const { loading, get, del, resolve, formatNumber } = useCommon();
 
-	inject: ["eventBus"],
+const message = ref(false);
+const messagesList = ref([]);
+const errorMessage = ref(false);
+const replayURL = ref("");
+const replayStatus = ref(null);
+const replayPending = ref(false);
+const tick = ref(0);
 
-	data() {
-		return {
-			webhooksStore,
-			message: false,
-			messagesList: [],
-			errorMessage: false,
-			replayURL: "",
-			replayStatus: null,
-			replayPending: false,
-		};
-	},
+const previousID = computed(() => {
+	const l = messagesList.value.length;
+	if (!message.value || !l) return false;
+	let id = false;
+	for (let x = 0; x < l; x++) {
+		if (messagesList.value[x].ID === message.value.ID) return id;
+		id = messagesList.value[x].ID;
+	}
+	return false;
+});
 
-	computed: {
-		previousID() {
-			const l = this.messagesList.length;
-			if (!this.message || !l) return false;
-			let id = false;
-			for (let x = 0; x < l; x++) {
-				if (this.messagesList[x].ID === this.message.ID) return id;
-				id = this.messagesList[x].ID;
-			}
-			return false;
-		},
+const nextID = computed(() => {
+	const l = messagesList.value.length;
+	if (!message.value || !l) return false;
+	let id = false;
+	for (let x = l - 1; x > 0; x--) {
+		if (messagesList.value[x].ID === message.value.ID) return id;
+		id = messagesList.value[x].ID;
+	}
+	return id;
+});
 
-		nextID() {
-			const l = this.messagesList.length;
-			if (!this.message || !l) return false;
-			let id = false;
-			for (let x = l - 1; x > 0; x--) {
-				if (this.messagesList[x].ID === this.message.ID) return id;
-				id = this.messagesList[x].ID;
-			}
-			return id;
-		},
+const fullURL = computed(() => {
+	if (!message.value) return "";
+	return message.value.Query ? message.value.Path + "?" + message.value.Query : message.value.Path;
+});
 
-		fullURL() {
-			if (!this.message) return "";
-			return this.message.Query ? this.message.Path + "?" + this.message.Query : this.message.Path;
-		},
+const bodyLanguage = computed(() => {
+	const ct = (message.value && message.value.ContentType) || "";
+	if (ct.includes("json")) return "json";
+	if (ct.includes("xml")) return "xml";
+	if (ct.includes("html")) return "html";
+	return "plaintext";
+});
 
-		bodyLanguage() {
-			const ct = (this.message && this.message.ContentType) || "";
-			if (ct.includes("json")) return "json";
-			if (ct.includes("xml")) return "xml";
-			if (ct.includes("html")) return "html";
-			return "plaintext";
-		},
-
-		prettyBody() {
-			if (!this.message || !this.message.Body) return "";
-			if (this.bodyLanguage === "json") {
-				try {
-					return JSON.stringify(JSON.parse(this.message.Body), null, 2);
-				} catch {
-					return this.message.Body;
-				}
-			}
-			return this.message.Body;
-		},
-
-		sortedHeaders() {
-			if (!this.message || !this.message.Headers) return [];
-			return Object.entries(this.message.Headers)
-				.sort(([a], [b]) => a.localeCompare(b))
-				.map(([name, values]) => ({ name, value: values.join(", ") }));
-		},
-
-		queryParams() {
-			if (!this.message || !this.message.Query) return [];
-			const params = new URLSearchParams(this.message.Query);
-			const result = [];
-			for (const [k, v] of params.entries()) {
-				result.push({ name: k, value: v });
-			}
-			return result;
-		},
-	},
-
-	watch: {
-		$route() {
-			this.loadMessage();
-		},
-	},
-
-	created() {
-		const relativeTime = require("dayjs/plugin/relativeTime");
-		dayjs.extend(relativeTime);
-	},
-
-	mounted() {
-		this.messagesList = [...(webhooksStore.messages || [])];
-		if (!this.messagesList.length) {
-			this.loadMessagesList();
+const prettyBody = computed(() => {
+	if (!message.value || !message.value.Body) return "";
+	if (bodyLanguage.value === "json") {
+		try {
+			return JSON.stringify(JSON.parse(message.value.Body), null, 2);
+		} catch {
+			return message.value.Body;
 		}
-		this.loadMessage();
-		this.refreshUI();
-		this.eventBus.on("webhook", this.handleWSNew);
-		this.eventBus.on("webhook_delete", this.handleWSDelete);
-		this.eventBus.on("webhook_truncate", this.handleWSTruncate);
-	},
+	}
+	return message.value.Body;
+});
 
-	unmounted() {
-		this.eventBus.off("webhook", this.handleWSNew);
-		this.eventBus.off("webhook_delete", this.handleWSDelete);
-		this.eventBus.off("webhook_truncate", this.handleWSTruncate);
-	},
+const sortedHeaders = computed(() => {
+	if (!message.value || !message.value.Headers) return [];
+	return Object.entries(message.value.Headers)
+		.sort(([a], [b]) => a.localeCompare(b))
+		.map(([name, values]) => ({ name, value: values.join(", ") }));
+});
 
-	methods: {
-		loadMessage() {
-			this.message = false;
-			this.replayStatus = null;
-			const id = this.$route.params.id;
-			this.get(
-				this.resolve(`/api/v1/webhook/${id}`),
-				false,
-				(response) => {
-					this.errorMessage = false;
-					this.message = response.data;
-					if (webhooksStore.unread > 0) webhooksStore.unread--;
-					this.$nextTick(() => this.scrollSidebarToCurrent());
-				},
-				() => {
-					this.errorMessage = "Webhook not found";
-				},
-			);
+const queryParams = computed(() => {
+	if (!message.value || !message.value.Query) return [];
+	const params = new URLSearchParams(message.value.Query);
+	const result = [];
+	for (const [k, v] of params.entries()) {
+		result.push({ name: k, value: v });
+	}
+	return result;
+});
+
+function loadMessage() {
+	message.value = false;
+	replayStatus.value = null;
+	const id = route.params.id;
+	get(
+		resolve(`/api/v1/webhook/${id}`),
+		false,
+		(response) => {
+			errorMessage.value = false;
+			message.value = response.data;
+			if (webhooksStore.unread > 0) webhooksStore.unread--;
+			nextTick(() => scrollSidebarToCurrent());
 		},
-
-		loadMessagesList() {
-			this.get(this.resolve("/api/v1/webhooks"), { limit: 50 }, (response) => {
-				webhooksStore.total = response.data.total;
-				webhooksStore.unread = response.data.unread;
-				webhooksStore.messages = response.data.messages;
-				this.messagesList = [...(webhooksStore.messages || [])];
-			});
+		() => {
+			errorMessage.value = "Webhook not found";
 		},
+	);
+}
 
-		refreshUI() {
-			window.setTimeout(() => {
-				this.$forceUpdate();
-				this.refreshUI();
-			}, 30000);
-		},
+function loadMessagesList() {
+	get(resolve("/api/v1/webhooks"), { limit: 50 }, (response) => {
+		webhooksStore.total = response.data.total;
+		webhooksStore.unread = response.data.unread;
+		webhooksStore.messages = response.data.messages;
+		messagesList.value = [...(webhooksStore.messages || [])];
+	});
+}
 
-		getRelativeCreated(msg) {
-			return dayjs(new Date(msg.Created)).fromNow();
-		},
+function getRelativeCreated(msg) {
+	return dayjs(new Date(msg.Created)).fromNow();
+}
 
-		getAbsoluteCreated(msg) {
-			return dayjs(new Date(msg.Created)).format("ddd, D MMM YYYY, h:mm:ss a");
-		},
+function getAbsoluteCreated(msg) {
+	return dayjs(new Date(msg.Created)).format("ddd, D MMM YYYY, h:mm:ss a");
+}
 
-		isActive(id) {
-			return this.message && this.message.ID === id;
-		},
+function isActive(id) {
+	return message.value && message.value.ID === id;
+}
 
-		methodBadgeClass(method) {
-			const map = {
-				GET: "text-bg-success",
-				POST: "text-bg-primary",
-				PUT: "text-bg-warning",
-				PATCH: "text-bg-info",
-				DELETE: "text-bg-danger",
-				HEAD: "text-bg-secondary",
-				OPTIONS: "text-bg-secondary",
-			};
-			return map[method] || "text-bg-secondary";
-		},
+function methodBadgeClass(method) {
+	const map = {
+		GET: "text-bg-success",
+		POST: "text-bg-primary",
+		PUT: "text-bg-warning",
+		PATCH: "text-bg-info",
+		DELETE: "text-bg-danger",
+		HEAD: "text-bg-secondary",
+		OPTIONS: "text-bg-secondary",
+	};
+	return map[method] || "text-bg-secondary";
+}
 
-		scrollSidebarToCurrent() {
-			const cont = document.getElementById("WebhookList");
-			if (!cont) return;
-			const c = cont.querySelector(".active");
-			if (c) {
-				const outer = cont.getBoundingClientRect();
-				const li = c.getBoundingClientRect();
-				if (outer.top > li.top || outer.bottom < li.bottom) {
-					c.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
-				}
-			}
-		},
+function scrollSidebarToCurrent() {
+	const cont = document.getElementById("WebhookList");
+	if (!cont) return;
+	const c = cont.querySelector(".active");
+	if (c) {
+		const outer = cont.getBoundingClientRect();
+		const li = c.getBoundingClientRect();
+		if (outer.top > li.top || outer.bottom < li.bottom) {
+			c.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+		}
+	}
+}
 
-		deleteMessage() {
-			const id = this.message.ID;
-			const goToID = this.nextID ? this.nextID : this.previousID;
-			this.delete(this.resolve(`/api/v1/webhook/${id}`), {}, () => {
-				if (goToID) {
-					return this.$router.push(`/webhooks/view/${goToID}`);
-				}
-				return this.$router.push("/webhooks");
-			});
-		},
+function deleteMessage() {
+	const id = message.value.ID;
+	const goToID = nextID.value ? nextID.value : previousID.value;
+	del(resolve(`/api/v1/webhook/${id}`), {}, () => {
+		if (goToID) return router.push(`/webhooks/view/${goToID}`);
+		return router.push("/webhooks");
+	});
+}
 
-		replayWebhook() {
-			if (!this.replayURL || !this.message) return;
-			this.replayPending = true;
-			this.replayStatus = null;
+function replayWebhook() {
+	if (!replayURL.value || !message.value) return;
+	replayPending.value = true;
+	replayStatus.value = null;
 
-			const headers = { "Content-Type": this.message.ContentType || "application/octet-stream" };
-			fetch(this.replayURL, {
-				method: this.message.Method,
-				headers,
-				body: ["GET", "HEAD", "OPTIONS"].includes(this.message.Method) ? undefined : this.message.Body,
-			})
-				.then((r) => {
-					this.replayStatus = { ok: r.ok, code: r.status, text: r.statusText };
-				})
-				.catch((e) => {
-					this.replayStatus = { ok: false, code: 0, text: e.message };
-				})
-				.finally(() => {
-					this.replayPending = false;
-				});
-		},
+	const headers = { "Content-Type": message.value.ContentType || "application/octet-stream" };
+	fetch(replayURL.value, {
+		method: message.value.Method,
+		headers,
+		body: ["GET", "HEAD", "OPTIONS"].includes(message.value.Method) ? undefined : message.value.Body,
+	})
+		.then((r) => {
+			replayStatus.value = { ok: r.ok, code: r.status, text: r.statusText };
+		})
+		.catch((e) => {
+			replayStatus.value = { ok: false, code: 0, text: e.message };
+		})
+		.finally(() => {
+			replayPending.value = false;
+		});
+}
 
-		handleWSNew(data) {
-			this.messagesList.unshift(data);
-			webhooksStore.messages.unshift(data);
-		},
-
-		handleWSDelete(id) {
-			this.messagesList = this.messagesList.filter((m) => m.ID !== id);
-			webhooksStore.messages = webhooksStore.messages.filter((m) => m.ID !== id);
-			if (this.message && this.message.ID === id) {
-				this.$router.push("/webhooks");
-			}
-		},
-
-		handleWSTruncate() {
-			this.messagesList = [];
-			this.$router.push("/webhooks");
-		},
-	},
+const handleWSNew = (data) => {
+	messagesList.value.unshift(data);
+	webhooksStore.messages.unshift(data);
 };
+
+const handleWSDelete = (id) => {
+	messagesList.value = messagesList.value.filter((m) => m.ID !== id);
+	webhooksStore.messages = webhooksStore.messages.filter((m) => m.ID !== id);
+	if (message.value && message.value.ID === id) {
+		router.push("/webhooks");
+	}
+};
+
+const handleWSTruncate = () => {
+	messagesList.value = [];
+	router.push("/webhooks");
+};
+
+watch(route, () => {
+	loadMessage();
+});
+
+let tickIntervalId;
+
+onMounted(() => {
+	messagesList.value = [...(webhooksStore.messages || [])];
+	if (!messagesList.value.length) {
+		loadMessagesList();
+	}
+	loadMessage();
+	tickIntervalId = setInterval(() => {
+		tick.value++;
+	}, 30000);
+	eventBus.on("webhook", handleWSNew);
+	eventBus.on("webhook_delete", handleWSDelete);
+	eventBus.on("webhook_truncate", handleWSTruncate);
+});
+
+onUnmounted(() => {
+	clearInterval(tickIntervalId);
+	eventBus.off("webhook", handleWSNew);
+	eventBus.off("webhook_delete", handleWSDelete);
+	eventBus.off("webhook_truncate", handleWSTruncate);
+});
 </script>
 
 <template>
-	<div class="navbar navbar-expand-lg row flex-shrink-0 bg-primary text-white d-print-none" data-bs-theme="dark">
+	<!-- tick drives relative time updates -->
+	<div
+		class="navbar navbar-expand-lg row flex-shrink-0 bg-primary text-white d-print-none"
+		data-bs-theme="dark"
+		:data-tick="tick"
+	>
 		<div class="d-none d-xl-block col-xl-3 col-auto pe-0">
 			<RouterLink to="/webhooks" class="navbar-brand text-white me-0">
 				<i class="bi bi-funnel-fill"></i>
@@ -344,7 +327,6 @@ export default {
 				</template>
 				<template v-else-if="message">
 					<div class="p-3 p-md-4">
-						<!-- Method + path title -->
 						<h5 class="mb-3 font-monospace d-flex align-items-baseline gap-2 flex-wrap">
 							<span class="badge fs-6" :class="methodBadgeClass(message.Method)">{{
 								message.Method
@@ -352,7 +334,6 @@ export default {
 							<span class="text-break">{{ fullURL }}</span>
 						</h5>
 
-						<!-- Summary table -->
 						<table class="table table-sm table-borderless small mb-3">
 							<tbody>
 								<tr>
@@ -374,7 +355,6 @@ export default {
 							</tbody>
 						</table>
 
-						<!-- Query params -->
 						<template v-if="queryParams.length">
 							<h6 class="text-muted mb-2">Query Parameters</h6>
 							<table class="table table-sm table-borderless small mb-3">
@@ -392,7 +372,6 @@ export default {
 							</table>
 						</template>
 
-						<!-- Headers -->
 						<h6 class="text-muted mb-2">Headers</h6>
 						<div class="card mb-3">
 							<div class="card-body p-0">
@@ -412,7 +391,6 @@ export default {
 							</div>
 						</div>
 
-						<!-- Body -->
 						<template v-if="message.Body">
 							<h6 class="text-muted mb-2">Body</h6>
 							<div class="card mb-3">
@@ -431,7 +409,6 @@ export default {
 							</div>
 						</template>
 
-						<!-- Replay -->
 						<h6 class="text-muted mb-2">Replay</h6>
 						<div class="card mb-3">
 							<div class="card-body">

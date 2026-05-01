@@ -1,92 +1,73 @@
-<script>
+<script setup>
 import AjaxLoader from "../AjaxLoader.vue";
 import Tags from "bootstrap5-tags";
-import commonMixins from "../../mixins/CommonMixins";
+import { ref, onMounted } from "vue";
 import { mailbox } from "../../stores/mailbox";
+import { useCommon } from "../../composables/useCommon";
 
-export default {
-	components: {
-		AjaxLoader,
+const props = defineProps({
+	message: {
+		type: Object,
+		default: () => ({}),
 	},
+});
 
-	mixins: [commonMixins],
+const emit = defineEmits(["delete"]);
 
-	props: {
-		message: {
-			type: Object,
-			default: () => ({}),
-		},
-	},
+const { loading, post, resolve, modal } = useCommon();
 
-	emits: ["delete"],
+const addresses = ref([]);
+const deleteAfterRelease = ref(false);
+const allAddresses = ref([]);
 
-	data() {
-		return {
-			addresses: [],
-			deleteAfterRelease: false,
-			mailbox,
-			allAddresses: [],
+function releaseMessage() {
+	window.setTimeout(() => {
+		if (!addresses.value.length) {
+			return false;
+		}
+
+		const data = {
+			To: addresses.value,
 		};
-	},
 
-	mounted() {
-		const a = [];
-		for (const i in this.message.To) {
-			a.push(this.message.To[i].Address);
-		}
-		for (const i in this.message.Cc) {
-			a.push(this.message.Cc[i].Address);
-		}
-		for (const i in this.message.Bcc) {
-			a.push(this.message.Bcc[i].Address);
-		}
-
-		// include only unique email addresses, regardless of casing
-		this.allAddresses = JSON.parse(JSON.stringify([...new Map(a.map((ad) => [ad.toLowerCase(), ad])).values()]));
-
-		// include default release addresses from mailbox settings
-		const defaultAddr = mailbox.defaultReleaseAddresses;
-		for (const i in defaultAddr) {
-			if (!this.allAddresses.includes(defaultAddr[i])) {
-				this.allAddresses.push(defaultAddr[i]);
+		post(resolve("/api/v1/message/" + props.message.ID + "/release"), data, () => {
+			modal("ReleaseModal").hide();
+			if (deleteAfterRelease.value) {
+				emit("delete");
 			}
+		});
+	}, 100);
+}
+
+onMounted(() => {
+	const a = [];
+	for (const i in props.message.To) {
+		a.push(props.message.To[i].Address);
+	}
+	for (const i in props.message.Cc) {
+		a.push(props.message.Cc[i].Address);
+	}
+	for (const i in props.message.Bcc) {
+		a.push(props.message.Bcc[i].Address);
+	}
+
+	allAddresses.value = JSON.parse(JSON.stringify([...new Map(a.map((ad) => [ad.toLowerCase(), ad])).values()]));
+
+	const defaultAddr = mailbox.defaultReleaseAddresses;
+	for (const i in defaultAddr) {
+		if (!allAddresses.value.includes(defaultAddr[i])) {
+			allAddresses.value.push(defaultAddr[i]);
 		}
+	}
 
-		if (defaultAddr.length === 0) {
-			// prefill with all addresses if no default is set
-			this.addresses = this.allAddresses;
-		} else {
-			this.addresses = defaultAddr;
-		}
-	},
+	if (defaultAddr.length === 0) {
+		addresses.value = allAddresses.value;
+	} else {
+		addresses.value = defaultAddr;
+	}
 
-	methods: {
-		// triggered manually after modal is shown
-		initTags() {
-			Tags.init("select[multiple]");
-		},
-
-		releaseMessage() {
-			// set timeout to allow for user clicking send before the tag filter has applied the tag
-			window.setTimeout(() => {
-				if (!this.addresses.length) {
-					return false;
-				}
-
-				const data = {
-					To: this.addresses,
-				};
-
-				this.post(this.resolve("/api/v1/message/" + this.message.ID + "/release"), data, () => {
-					this.modal("ReleaseModal").hide();
-					if (this.deleteAfterRelease) {
-						this.$emit("delete");
-					}
-				});
-			}, 100);
-		},
-	},
-};
+	Tags.init("select[multiple]");
+});
 </script>
 
 <template>

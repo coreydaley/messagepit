@@ -1,310 +1,280 @@
-<script>
+<script setup>
+import { ref, computed, watch, onMounted } from "vue";
 import { VcDonut } from "vue-css-donut-chart";
 import axios from "axios";
-import commonMixins from "../../mixins/CommonMixins";
 import { Tooltip } from "bootstrap";
+import { useCommon } from "../../composables/useCommon";
 import DOMPurify from "dompurify";
 
-export default {
-	components: {
-		VcDonut,
+const props = defineProps({
+	message: {
+		type: Object,
+		required: true,
 	},
+});
 
-	mixins: [commonMixins],
+const emit = defineEmits(["setHtmlScore", "setBadgeStyle"]);
 
-	props: {
-		message: {
-			type: Object,
-			required: true,
-		},
-	},
+const { resolve, formatNumber } = useCommon();
 
-	emits: ["setHtmlScore", "setBadgeStyle"],
-
-	data() {
-		return {
-			error: false,
-			check: false,
-			platforms: [],
-			allPlatforms: {
-				windows: "Windows",
-				"windows-mail": "Windows Mail",
-				"outlook-com": "Outlook.com",
-				macos: "macOS",
-				ios: "iOS",
-				android: "Android",
-				"desktop-webmail": "Desktop Webmail",
-				"mobile-webmail": "Mobile Webmail",
-			},
-		};
-	},
-
-	computed: {
-		summary() {
-			if (!this.check) {
-				return false;
-			}
-
-			const result = {
-				Warnings: [],
-				Total: {
-					Nodes: this.check.Total.Nodes,
-				},
-			};
-
-			for (let i = 0; i < this.check.Warnings.length; i++) {
-				const o = JSON.parse(JSON.stringify(this.check.Warnings[i]));
-
-				// for <script> test
-				if (o.Results.length === 0) {
-					result.Warnings.push(o);
-					continue;
-				}
-
-				// filter by enabled platforms
-				const results = o.Results.filter((w) => {
-					return this.platforms.indexOf(w.Platform) !== -1;
-				});
-
-				if (results.length === 0) {
-					continue;
-				}
-
-				// recalculate the percentages
-				let y = 0;
-				let p = 0;
-				let n = 0;
-
-				results.forEach((r) => {
-					if (r.Support === "yes") {
-						y++;
-					} else if (r.Support === "partial") {
-						p++;
-					} else {
-						n++;
-					}
-				});
-				const total = y + p + n;
-				o.Results = results;
-				o.Score = {
-					Found: o.Score.Found,
-					Supported: (y / total) * 100,
-					Partial: (p / total) * 100,
-					Unsupported: (n / total) * 100,
-				};
-
-				result.Warnings.push(o);
-			}
-
-			let maxPartial = 0;
-			let maxUnsupported = 0;
-			result.Warnings.forEach((w) => {
-				let scoreWeight = 1;
-				if (w.Score.Found < result.Total.Nodes) {
-					// each error is weighted based on the number of occurrences vs: the total message nodes
-					scoreWeight = w.Score.Found / result.Total.Nodes;
-				}
-
-				// pseudo-classes & at-rules need to be weighted lower as we do not know how many times they
-				// are actually used in the HTML, and including things like bootstrap styles completely throws
-				// off the calculation as these dominate.
-				if (this.isPseudoClassOrAtRule(w.Title)) {
-					scoreWeight = 0.05;
-					w.PseudoClassOrAtRule = true;
-				}
-
-				const scorePartial = w.Score.Partial * scoreWeight;
-				const scoreUnsupported = w.Score.Unsupported * scoreWeight;
-				if (scorePartial > maxPartial) {
-					maxPartial = scorePartial;
-				}
-				if (scoreUnsupported > maxUnsupported) {
-					maxUnsupported = scoreUnsupported;
-				}
-			});
-
-			// sort warnings by final score
-			result.Warnings.sort((a, b) => {
-				let aWeight =
-					a.Score.Found > result.Total.Nodes ? result.Total.Nodes : a.Score.Found / result.Total.Nodes;
-				let bWeight =
-					b.Score.Found > result.Total.Nodes ? result.Total.Nodes : b.Score.Found / result.Total.Nodes;
-
-				if (this.isPseudoClassOrAtRule(a.Title)) {
-					aWeight = 0.05;
-				}
-
-				if (this.isPseudoClassOrAtRule(b.Title)) {
-					bWeight = 0.05;
-				}
-
-				return (
-					(a.Score.Unsupported + a.Score.Partial) * aWeight <
-					(b.Score.Unsupported + b.Score.Partial) * bWeight
-				);
-			});
-
-			result.Total.Supported = 100 - maxPartial - maxUnsupported;
-			result.Total.Partial = maxPartial;
-			result.Total.Unsupported = maxUnsupported;
-
-			this.$emit("setHtmlScore", result.Total.Supported);
-
-			return result;
-		},
-
-		graphSections() {
-			const s = Math.round(this.summary.Total.Supported);
-			const p = Math.round(this.summary.Total.Partial);
-			const u = 100 - s - p;
-			return [
-				{
-					label: this.round2dm(this.summary.Total.Supported) + "% supported",
-					value: s,
-					color: "#198754",
-				},
-				{
-					label: this.round2dm(this.summary.Total.Partial) + "% partially supported",
-					value: p,
-					color: "#ffc107",
-				},
-				{
-					label: this.round2dm(this.summary.Total.Unsupported) + "% not supported",
-					value: u,
-					color: "#dc3545",
-				},
-			];
-		},
-
-		// colors depend on both varying unsupported & partially unsupported percentages
-		scoreColor() {
-			if (this.summary.Total.Unsupported < 5 && this.summary.Total.Partial < 10) {
-				this.$emit("setBadgeStyle", "bg-success");
-				return "text-success";
-			} else if (this.summary.Total.Unsupported < 10 && this.summary.Total.Partial < 15) {
-				this.$emit("setBadgeStyle", "bg-warning text-primary");
-				return "text-warning";
-			}
-
-			this.$emit("setBadgeStyle", "bg-danger");
-			return "text-danger";
-		},
-	},
-
-	watch: {
-		message: {
-			handler() {
-				this.$emit("setHtmlScore", false);
-				this.doCheck();
-			},
-			deep: true,
-		},
-		platforms(v) {
-			localStorage.setItem("html-check-platforms", JSON.stringify(v));
-		},
-	},
-
-	mounted() {
-		this.loadConfig();
-		this.doCheck();
-	},
-
-	methods: {
-		doCheck() {
-			this.check = false;
-
-			if (this.message.HTML === "") {
-				return;
-			}
-
-			// ignore any error, do not show loader
-			axios
-				.get(this.resolve("/api/v1/message/" + this.message.ID + "/html-check"), null)
-				.then((result) => {
-					this.check = result.data;
-					this.error = false;
-
-					// set tooltips
-					window.setTimeout(() => {
-						const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-						[...tooltipTriggerList].map((tooltipTriggerEl) => new Tooltip(tooltipTriggerEl));
-					}, 500);
-				})
-				.catch((error) => {
-					// handle error
-					if (error.response && error.response.data) {
-						// The request was made and the server responded with a status code
-						// that falls out of the range of 2xx
-						if (error.response.data.Error) {
-							this.error = error.response.data.Error;
-						} else {
-							this.error = error.response.data;
-						}
-					} else if (error.request) {
-						// The request was made but no response was received
-						// `error.request` is an instance of XMLHttpRequest in the browser and an instance of
-						// http.ClientRequest in node.js
-						this.error = "Error sending data to the server. Please try again.";
-					} else {
-						// Something happened in setting up the request that triggered an Error
-						this.error = error.message;
-					}
-				});
-		},
-
-		loadConfig() {
-			const platforms = localStorage.getItem("html-check-platforms");
-			if (platforms) {
-				try {
-					this.platforms = JSON.parse(platforms);
-				} catch {
-					// if parsing fails, reset to default
-					this.platforms = [];
-				}
-			}
-
-			// set all options
-			if (this.platforms.length === 0) {
-				this.platforms = Object.keys(this.allPlatforms);
-			}
-		},
-
-		// return a platform's families (email clients)
-		families(k) {
-			if (this.check.Platforms[k]) {
-				return this.check.Platforms[k];
-			}
-
-			return [];
-		},
-
-		// return whether the test string is a pseudo class (:<test>) or at rule (@<test>)
-		isPseudoClassOrAtRule(t) {
-			return t.match(/^(:|@)/);
-		},
-
-		round(v) {
-			return Math.round(v);
-		},
-
-		round2dm(v) {
-			return Math.round(v * 100) / 100;
-		},
-
-		scrollToWarnings() {
-			if (!this.$refs.warnings) {
-				return;
-			}
-
-			this.$refs.warnings.scrollIntoView({ behavior: "smooth" });
-		},
-
-		// Sanitize HTML to prevent XSS
-		sanitizeHTML(html) {
-			return DOMPurify.sanitize(html);
-		},
-	},
+const error = ref(false);
+const check = ref(false);
+const platforms = ref([]);
+const allPlatforms = {
+	windows: "Windows",
+	"windows-mail": "Windows Mail",
+	"outlook-com": "Outlook.com",
+	macos: "macOS",
+	ios: "iOS",
+	android: "Android",
+	"desktop-webmail": "Desktop Webmail",
+	"mobile-webmail": "Mobile Webmail",
 };
+
+function isPseudoClassOrAtRule(t) {
+	return t.match(/^(:|@)/);
+}
+
+function round(v) {
+	return Math.round(v);
+}
+
+function round2dm(v) {
+	return Math.round(v * 100) / 100;
+}
+
+function sanitizeHTML(html) {
+	return DOMPurify.sanitize(html);
+}
+
+function families(k) {
+	if (check.value.Platforms[k]) {
+		return check.value.Platforms[k];
+	}
+	return [];
+}
+
+const summary = computed(() => {
+	if (!check.value) {
+		return false;
+	}
+
+	const result = {
+		Warnings: [],
+		Total: {
+			Nodes: check.value.Total.Nodes,
+		},
+	};
+
+	for (let i = 0; i < check.value.Warnings.length; i++) {
+		const o = JSON.parse(JSON.stringify(check.value.Warnings[i]));
+
+		if (o.Results.length === 0) {
+			result.Warnings.push(o);
+			continue;
+		}
+
+		const results = o.Results.filter((w) => {
+			return platforms.value.indexOf(w.Platform) !== -1;
+		});
+
+		if (results.length === 0) {
+			continue;
+		}
+
+		let y = 0;
+		let p = 0;
+		let n = 0;
+
+		results.forEach((r) => {
+			if (r.Support === "yes") {
+				y++;
+			} else if (r.Support === "partial") {
+				p++;
+			} else {
+				n++;
+			}
+		});
+		const total = y + p + n;
+		o.Results = results;
+		o.Score = {
+			Found: o.Score.Found,
+			Supported: (y / total) * 100,
+			Partial: (p / total) * 100,
+			Unsupported: (n / total) * 100,
+		};
+
+		result.Warnings.push(o);
+	}
+
+	let maxPartial = 0;
+	let maxUnsupported = 0;
+	result.Warnings.forEach((w) => {
+		let scoreWeight = 1;
+		if (w.Score.Found < result.Total.Nodes) {
+			scoreWeight = w.Score.Found / result.Total.Nodes;
+		}
+
+		if (isPseudoClassOrAtRule(w.Title)) {
+			scoreWeight = 0.05;
+			w.PseudoClassOrAtRule = true;
+		}
+
+		const scorePartial = w.Score.Partial * scoreWeight;
+		const scoreUnsupported = w.Score.Unsupported * scoreWeight;
+		if (scorePartial > maxPartial) {
+			maxPartial = scorePartial;
+		}
+		if (scoreUnsupported > maxUnsupported) {
+			maxUnsupported = scoreUnsupported;
+		}
+	});
+
+	result.Warnings.sort((a, b) => {
+		let aWeight = a.Score.Found > result.Total.Nodes ? result.Total.Nodes : a.Score.Found / result.Total.Nodes;
+		let bWeight = b.Score.Found > result.Total.Nodes ? result.Total.Nodes : b.Score.Found / result.Total.Nodes;
+
+		if (isPseudoClassOrAtRule(a.Title)) {
+			aWeight = 0.05;
+		}
+
+		if (isPseudoClassOrAtRule(b.Title)) {
+			bWeight = 0.05;
+		}
+
+		return (a.Score.Unsupported + a.Score.Partial) * aWeight < (b.Score.Unsupported + b.Score.Partial) * bWeight;
+	});
+
+	result.Total.Supported = 100 - maxPartial - maxUnsupported;
+	result.Total.Partial = maxPartial;
+	result.Total.Unsupported = maxUnsupported;
+
+	return result;
+});
+
+const scoreColor = computed(() => {
+	if (!summary.value) return "";
+	if (summary.value.Total.Unsupported < 5 && summary.value.Total.Partial < 10) {
+		return "text-success";
+	} else if (summary.value.Total.Unsupported < 10 && summary.value.Total.Partial < 15) {
+		return "text-warning";
+	}
+	return "text-danger";
+});
+
+const graphSections = computed(() => {
+	if (!summary.value) return [];
+	const s = Math.round(summary.value.Total.Supported);
+	const p = Math.round(summary.value.Total.Partial);
+	const u = 100 - s - p;
+	return [
+		{
+			label: round2dm(summary.value.Total.Supported) + "% supported",
+			value: s,
+			color: "#198754",
+		},
+		{
+			label: round2dm(summary.value.Total.Partial) + "% partially supported",
+			value: p,
+			color: "#ffc107",
+		},
+		{
+			label: round2dm(summary.value.Total.Unsupported) + "% not supported",
+			value: u,
+			color: "#dc3545",
+		},
+	];
+});
+
+watch(summary, (s) => {
+	if (!s) {
+		emit("setHtmlScore", false);
+		return;
+	}
+	emit("setHtmlScore", s.Total.Supported);
+	if (s.Total.Unsupported < 5 && s.Total.Partial < 10) {
+		emit("setBadgeStyle", "bg-success");
+	} else if (s.Total.Unsupported < 10 && s.Total.Partial < 15) {
+		emit("setBadgeStyle", "bg-warning text-primary");
+	} else {
+		emit("setBadgeStyle", "bg-danger");
+	}
+});
+
+watch(platforms, (v) => {
+	localStorage.setItem("html-check-platforms", JSON.stringify(v));
+});
+
+const warningsRef = ref(null);
+
+function scrollToWarnings() {
+	if (!warningsRef.value) {
+		return;
+	}
+	warningsRef.value.scrollIntoView({ behavior: "smooth" });
+}
+
+function doCheck() {
+	check.value = false;
+
+	if (props.message.HTML === "") {
+		return;
+	}
+
+	axios
+		.get(resolve("/api/v1/message/" + props.message.ID + "/html-check"), null)
+		.then((result) => {
+			check.value = result.data;
+			error.value = false;
+
+			window.setTimeout(() => {
+				const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+				[...tooltipTriggerList].map((tooltipTriggerEl) => new Tooltip(tooltipTriggerEl));
+			}, 500);
+		})
+		.catch((err) => {
+			if (err.response && err.response.data) {
+				if (err.response.data.Error) {
+					error.value = err.response.data.Error;
+				} else {
+					error.value = err.response.data;
+				}
+			} else if (err.request) {
+				error.value = "Error sending data to the server. Please try again.";
+			} else {
+				error.value = err.message;
+			}
+		});
+}
+
+function loadConfig() {
+	const stored = localStorage.getItem("html-check-platforms");
+	if (stored) {
+		try {
+			platforms.value = JSON.parse(stored);
+		} catch {
+			platforms.value = [];
+		}
+	}
+
+	if (platforms.value.length === 0) {
+		platforms.value = Object.keys(allPlatforms);
+	}
+}
+
+watch(
+	() => props.message,
+	() => {
+		emit("setHtmlScore", false);
+		doCheck();
+	},
+	{ deep: true },
+);
+
+onMounted(() => {
+	loadConfig();
+	doCheck();
+});
 </script>
 
 <template>
@@ -396,7 +366,7 @@ export default {
 		</div>
 
 		<template v-if="summary.Warnings.length">
-			<h4 ref="warnings" class="h5 mt-4">
+			<h4 ref="warningsRef" class="h5 mt-4">
 				{{ summary.Warnings.length }} Warnings from {{ formatNumber(summary.Total.Nodes) }} HTML nodes:
 			</h4>
 			<div id="warnings" class="accordion">

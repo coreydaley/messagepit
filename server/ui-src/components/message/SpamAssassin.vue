@@ -1,136 +1,111 @@
-<script>
+<script setup>
+import { ref, computed, watch, onMounted } from "vue";
 import { VcDonut } from "vue-css-donut-chart";
 import axios from "axios";
-import commonMixins from "../../mixins/CommonMixins";
+import { useCommon } from "../../composables/useCommon";
 
-export default {
-	components: {
-		VcDonut,
+const props = defineProps({
+	message: {
+		type: Object,
+		default: () => ({}),
 	},
+});
 
-	mixins: [commonMixins],
+const emit = defineEmits(["setSpamScore", "setBadgeStyle"]);
 
-	props: {
-		message: {
-			type: Object,
-			default: () => ({}),
+const { resolve } = useCommon();
+
+const error = ref(false);
+const check = ref(false);
+
+const graphSections = computed(() => {
+	const score = check.value.Score;
+	let p = Math.round((score / 5) * 100);
+	if (p > 100) {
+		p = 100;
+	} else if (p < 0) {
+		p = 0;
+	}
+
+	let c = "#ffc107";
+	if (check.value.IsSpam) {
+		c = "#dc3545";
+	}
+
+	return [
+		{
+			label: score + " / 5",
+			value: p,
+			color: c,
 		},
-	},
+	];
+});
 
-	emits: ["setSpamScore", "setBadgeStyle"],
+const scoreColor = computed(() => graphSections.value[0].color);
 
-	data() {
-		return {
-			error: false,
-			check: false,
-		};
-	},
+function badgeStyle(ignorePadding = false) {
+	let style = "bg-success";
+	if (check.value.Error) {
+		style = "bg-warning text-primary";
+	} else if (check.value.IsSpam) {
+		style = "bg-danger";
+	} else if (check.value.Score >= 4) {
+		style = "bg-warning text-primary";
+	}
 
-	computed: {
-		graphSections() {
-			const score = this.check.Score;
-			let p = Math.round((score / 5) * 100);
-			if (p > 100) {
-				p = 100;
-			} else if (p < 0) {
-				p = 0;
+	if (!ignorePadding && String(check.value.Score).includes(".")) {
+		style += " p-1";
+	}
+
+	return style;
+}
+
+function setIcons() {
+	let score = check.value.Score;
+	if (check.value.Error && check.value.Error !== "") {
+		score = "!";
+	}
+	emit("setBadgeStyle", badgeStyle());
+	emit("setSpamScore", score);
+}
+
+function doCheck() {
+	check.value = false;
+
+	axios
+		.get(resolve("/api/v1/message/" + props.message.ID + "/sa-check"), null)
+		.then((result) => {
+			check.value = result.data;
+			error.value = false;
+			setIcons();
+		})
+		.catch((err) => {
+			if (err.response && err.response.data) {
+				if (err.response.data.Error) {
+					error.value = err.response.data.Error;
+				} else {
+					error.value = err.response.data;
+				}
+			} else if (err.request) {
+				error.value = "Error sending data to the server. Please try again.";
+			} else {
+				error.value = err.message;
 			}
+		});
+}
 
-			let c = "#ffc107";
-			if (this.check.IsSpam) {
-				c = "#dc3545";
-			}
-
-			return [
-				{
-					label: score + " / 5",
-					value: p,
-					color: c,
-				},
-			];
-		},
-
-		scoreColor() {
-			return this.graphSections[0].color;
-		},
+watch(
+	() => props.message,
+	() => {
+		emit("setSpamScore", false);
+		doCheck();
 	},
+	{ deep: true },
+);
 
-	watch: {
-		message: {
-			handler() {
-				this.$emit("setSpamScore", false);
-				this.doCheck();
-			},
-			deep: true,
-		},
-	},
-
-	mounted() {
-		this.doCheck();
-	},
-
-	methods: {
-		doCheck() {
-			this.check = false;
-
-			// ignore any error, do not show loader
-			axios
-				.get(this.resolve("/api/v1/message/" + this.message.ID + "/sa-check"), null)
-				.then((result) => {
-					this.check = result.data;
-					this.error = false;
-					this.setIcons();
-				})
-				.catch((error) => {
-					// handle error
-					if (error.response && error.response.data) {
-						// The request was made and the server responded with a status code
-						// that falls out of the range of 2xx
-						if (error.response.data.Error) {
-							this.error = error.response.data.Error;
-						} else {
-							this.error = error.response.data;
-						}
-					} else if (error.request) {
-						// The request was made but no response was received
-						// `error.request` is an instance of XMLHttpRequest in the browser and an instance of
-						// http.ClientRequest in node.js
-						this.error = "Error sending data to the server. Please try again.";
-					} else {
-						// Something happened in setting up the request that triggered an Error
-						this.error = error.message;
-					}
-				});
-		},
-
-		badgeStyle(ignorePadding = false) {
-			let badgeStyle = "bg-success";
-			if (this.check.Error) {
-				badgeStyle = "bg-warning text-primary";
-			} else if (this.check.IsSpam) {
-				badgeStyle = "bg-danger";
-			} else if (this.check.Score >= 4) {
-				badgeStyle = "bg-warning text-primary";
-			}
-
-			if (!ignorePadding && String(this.check.Score).includes(".")) {
-				badgeStyle += " p-1";
-			}
-
-			return badgeStyle;
-		},
-
-		setIcons() {
-			let score = this.check.Score;
-			if (this.check.Error && this.check.Error !== "") {
-				score = "!";
-			}
-			const badgeStyle = this.badgeStyle();
-			this.$emit("setBadgeStyle", badgeStyle);
-			this.$emit("setSpamScore", score);
-		},
-	},
-};
+onMounted(() => {
+	doCheck();
+});
 </script>
 
 <template>
@@ -170,7 +145,7 @@ export default {
 					:auto-adjust-text-size="true"
 					foreground="#198754"
 				>
-					<h2 class="m-0" :class="scoreColor" @click="scrollToWarnings">{{ check.Score }} / 5</h2>
+					<h2 class="m-0" :class="scoreColor">{{ check.Score }} / 5</h2>
 					<div class="text-body mt-2">
 						<span v-if="check.IsSpam" class="text-white badge rounded-pill bg-danger p-2">Spam</span>
 						<span v-else class="badge rounded-pill p-2" :class="badgeStyle()">Not spam</span>

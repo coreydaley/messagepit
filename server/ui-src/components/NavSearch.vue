@@ -1,74 +1,60 @@
-<script>
+<script setup>
 import NavSelected from "../components/NavSelected.vue";
 import AjaxLoader from "./AjaxLoader.vue";
-import CommonMixins from "../mixins/CommonMixins";
+import { useRouter } from "vue-router";
 import { mailbox } from "../stores/mailbox";
 import { pagination } from "../stores/pagination";
+import { useCommon } from "../composables/useCommon";
 
-export default {
-	components: {
-		NavSelected,
-		AjaxLoader,
+const emit = defineEmits(["loadMessages"]);
+
+const router = useRouter();
+const { loading, del, put, resolve, formatNumber, getSearch, hideNav } = useCommon();
+
+defineProps({
+	modals: {
+		type: Boolean,
+		default: false,
 	},
+});
 
-	mixins: [CommonMixins],
+function loadMessages() {
+	hideNav();
+	emit("loadMessages");
+}
 
-	props: {
-		modals: {
-			type: Boolean,
-			default: false,
-		},
-	},
+function deleteAllMessages() {
+	const s = getSearch();
+	if (!s) {
+		return;
+	}
 
-	emits: ["loadMessages"],
+	let uri = resolve(`/api/v1/search`) + "?query=" + encodeURIComponent(s);
+	if (mailbox.timeZone !== "" && (s.indexOf("after:") !== -1 || s.indexOf("before:") !== -1)) {
+		uri += "&tz=" + encodeURIComponent(mailbox.timeZone);
+	}
 
-	data() {
-		return {
-			mailbox,
-			pagination,
-		};
-	},
+	del(uri, false, () => {
+		router.push("/");
+	});
+}
 
-	methods: {
-		loadMessages() {
-			this.hideNav(); // hide mobile menu
-			this.$emit("loadMessages");
-		},
+function markAllRead() {
+	const s = getSearch();
+	if (!s) {
+		return;
+	}
 
-		deleteAllMessages() {
-			const s = this.getSearch();
-			if (!s) {
-				return;
-			}
+	let uri = resolve(`/api/v1/messages`);
+	if (mailbox.timeZone !== "" && (s.indexOf("after:") !== -1 || s.indexOf("before:") !== -1)) {
+		uri += "?tz=" + encodeURIComponent(mailbox.timeZone);
+	}
 
-			let uri = this.resolve(`/api/v1/search`) + "?query=" + encodeURIComponent(s);
-			if (mailbox.timeZone !== "" && (s.indexOf("after:") !== -1 || s.indexOf("before:") !== -1)) {
-				uri += "&tz=" + encodeURIComponent(mailbox.timeZone);
-			}
-
-			this.delete(uri, false, () => {
-				this.$router.push("/");
-			});
-		},
-
-		markAllRead() {
-			const s = this.getSearch();
-			if (!s) {
-				return;
-			}
-
-			let uri = this.resolve(`/api/v1/messages`);
-			if (mailbox.timeZone !== "" && (s.indexOf("after:") !== -1 || s.indexOf("before:") !== -1)) {
-				uri += "?tz=" + encodeURIComponent(mailbox.timeZone);
-			}
-
-			this.put(uri, { read: true, search: s }, () => {
-				window.scrollInPlace = true;
-				this.loadMessages();
-			});
-		},
-	},
-};
+	put(uri, { read: true, search: s }, () => {
+		window.scrollInPlace = true;
+		loadMessages();
+	});
+}
 </script>
 
 <template>

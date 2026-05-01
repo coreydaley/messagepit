@@ -1,4 +1,5 @@
-<script>
+<script setup>
+import { ref, computed, watch, onMounted, nextTick } from "vue";
 import Attachments from "./MessageAttachments.vue";
 import Headers from "./MessageHeaders.vue";
 import HTMLCheck from "./HTMLCheck.vue";
@@ -6,330 +7,250 @@ import LinkCheck from "./LinkCheck.vue";
 import SpamAssassin from "./SpamAssassin.vue";
 import Tags from "bootstrap5-tags";
 import { Tooltip } from "bootstrap";
-import commonMixins from "../../mixins/CommonMixins";
 import { mailbox } from "../../stores/mailbox";
+import { useCommon } from "../../composables/useCommon";
 import DOMPurify from "dompurify";
 import hljs from "highlight.js/lib/core";
 import xml from "highlight.js/lib/languages/xml";
 
 hljs.registerLanguage("html", xml);
 
-export default {
-	components: {
-		Attachments,
-		Headers,
-		HTMLCheck,
-		LinkCheck,
-		SpamAssassin,
+const props = defineProps({
+	message: {
+		type: Object,
+		required: true,
 	},
+});
 
-	mixins: [commonMixins],
+const emit = defineEmits(["loadMessages"]);
 
-	props: {
-		message: {
-			type: Object,
-			required: true,
-		},
-	},
+const { get, put, resolve, formatNumber, getFileSize, searchURI, messageDate, allAttachments } = useCommon();
 
-	emits: ["loadMessages"],
+const srcURI = ref(false);
+const canSaveTags = ref(false);
+const availableTags = ref([]);
+const messageTags = ref([]);
+const loadHeaders = ref(false);
+const htmlScore = ref(false);
+const htmlScoreColor = ref(false);
+const linkCheckErrors = ref(false);
+const spamScore = ref(false);
+const spamScoreColor = ref(false);
+const showMobileButtons = ref(false);
+const showUnsubscribe = ref(false);
+const scaleHTMLPreview = ref("display");
+const navhtml = ref(null);
 
-	data() {
-		return {
-			mailbox,
-			srcURI: false,
-			iframes: [], // for resizing
-			canSaveTags: false, // prevent auto-saving tags on render
-			availableTags: [],
-			messageTags: [],
-			loadHeaders: false,
-			htmlScore: false,
-			htmlScoreColor: false,
-			linkCheckErrors: false,
-			spamScore: false,
-			spamScoreColor: false,
-			showMobileButtons: false,
-			showUnsubscribe: false,
-			scaleHTMLPreview: "display",
-			// keys names match bootstrap icon names
-			responsiveSizes: {
-				phone: "width: 322px; height: 570px",
-				tablet: "width: 768px; height: 1024px",
-				display: "width: 100%; height: 100%",
-			},
-		};
-	},
-
-	computed: {
-		hasAnyChecksEnabled() {
-			return (
-				(mailbox.showHTMLCheck && this.message.HTML) ||
-				mailbox.showLinkCheck ||
-				(mailbox.showSpamCheck && mailbox.uiConfig.SpamAssassin)
-			);
-		},
-
-		// remove bad HTML, JavaScript, iframes etc
-		sanitizedHTML() {
-			// set target & rel on all links
-			DOMPurify.addHook("afterSanitizeAttributes", (node) => {
-				if (
-					node.tagName !== "A" ||
-					(node.hasAttribute("href") && node.getAttribute("href").substring(0, 1) === "#")
-				) {
-					return;
-				}
-				if ("target" in node) {
-					node.setAttribute("target", "_blank");
-					node.setAttribute("rel", "noopener noreferrer");
-				}
-				if (!node.hasAttribute("target") && (node.hasAttribute("xlink:href") || node.hasAttribute("href"))) {
-					node.setAttribute("xlink:show", "_blank");
-				}
-			});
-
-			const clean = DOMPurify.sanitize(this.message.HTML, {
-				WHOLE_DOCUMENT: true,
-				SANITIZE_DOM: false,
-				ADD_TAGS: ["link", "meta", "o:p", "style"],
-				ADD_ATTR: [
-					"bordercolor",
-					"charset",
-					"content",
-					"hspace",
-					"http-equiv",
-					"itemprop",
-					"itemscope",
-					"itemtype",
-					"link",
-					"vertical-align",
-					"vlink",
-					"vspace",
-					"xml:lang",
-				],
-				FORBID_TAGS: ["script", "form"], // all JavaScript should be removed
-				ALLOW_UNKNOWN_PROTOCOLS: true, // allow link href protocols like myapp:// etc
-			});
-
-			// for debugging
-			// this.debugDOMPurify(DOMPurify.removed);
-
-			return clean;
-		},
-	},
-
-	watch: {
-		messageTags() {
-			if (this.canSaveTags) {
-				// save changes to tags
-				this.saveTags();
-			}
-		},
-
-		scaleHTMLPreview(v) {
-			if (v === "display") {
-				window.setTimeout(() => {
-					this.resizeIFrames();
-				}, 500);
-			}
-		},
-	},
-
-	mounted() {
-		this.canSaveTags = false;
-		this.messageTags = this.message.Tags;
-		this.renderUI();
-
-		window.addEventListener("resize", this.resizeIFrames);
-
-		const headersTab = document.getElementById("nav-headers-tab");
-		headersTab.addEventListener("shown.bs.tab", () => {
-			this.loadHeaders = true;
-		});
-
-		const rawTab = document.getElementById("nav-raw-tab");
-		rawTab.addEventListener("shown.bs.tab", () => {
-			this.srcURI = this.resolve("/api/v1/message/" + this.message.ID + "/raw");
-			this.resizeIFrames();
-		});
-
-		// manually refresh tags
-		this.get(this.resolve(`/api/v1/tags`), false, (response) => {
-			this.availableTags = response.data;
-			this.$nextTick(() => {
-				Tags.init("select[multiple]");
-				// delay tag change detection to allow Tags to load
-				window.setTimeout(() => {
-					this.canSaveTags = true;
-				}, 200);
-			});
-		});
-	},
-
-	methods: {
-		isHTMLTabSelected() {
-			this.showMobileButtons = this.$refs.navhtml && this.$refs.navhtml.classList.contains("active");
-		},
-
-		renderUI() {
-			// activate the first non-disabled tab
-			document.querySelector("#nav-tab button:not([disabled])").click();
-			document.activeElement.blur(); // blur focus
-			document.getElementById("message-view").scrollTop = 0;
-
-			this.isHTMLTabSelected();
-
-			document.querySelectorAll('button[data-bs-toggle="tab"]').forEach((listObj) => {
-				listObj.addEventListener("shown.bs.tab", () => {
-					this.isHTMLTabSelected();
-				});
-			});
-
-			const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-			[...tooltipTriggerList].map((tooltipTriggerEl) => new Tooltip(tooltipTriggerEl));
-
-			// delay 0.5s until vue has rendered the iframe content
-			window.setTimeout(() => {
-				const p = document.getElementById("preview-html");
-				if (p && typeof p.contentWindow.document.body === "object") {
-					try {
-						// make links open in new window
-						const anchorEls = p.contentWindow.document.body.querySelectorAll("a");
-						for (let i = 0; i < anchorEls.length; i++) {
-							const anchorEl = anchorEls[i];
-							const href = anchorEl.getAttribute("href");
-
-							if (href && href.match(/^https?:\/\//i)) {
-								anchorEl.setAttribute("target", "_blank");
-							}
-						}
-					} catch {
-						// ignore errors when accessing the iframe content
-					}
-					this.resizeIFrames();
-				}
-			}, 500);
-
-			// HTML highlighting
-			hljs.highlightAll();
-		},
-
-		resizeIframe(el) {
-			const i = el.target;
-			if (typeof i.contentWindow.document.body.scrollHeight === "number") {
-				i.style.height = i.contentWindow.document.body.scrollHeight + 50 + "px";
-			}
-		},
-
-		resizeIFrames() {
-			if (this.scaleHTMLPreview !== "display") {
-				return;
-			}
-			const h = document.getElementById("preview-html");
-			if (h) {
-				if (typeof h.contentWindow.document.body.scrollHeight === "number") {
-					h.style.height = h.contentWindow.document.body.scrollHeight + 50 + "px";
-				}
-			}
-		},
-
-		// set the iframe body & text colors based on current theme
-		initRawIframe(el) {
-			const bodyStyles = window.getComputedStyle(document.body, null);
-			const bg = bodyStyles.getPropertyValue("background-color");
-			const txt = bodyStyles.getPropertyValue("color");
-
-			const body = el.target.contentWindow.document.querySelector("body");
-			if (body) {
-				body.style.color = txt;
-				body.style.backgroundColor = bg;
-			}
-
-			this.resizeIframe(el);
-		},
-
-		// this function is unused but kept here to use for debugging
-		debugDOMPurify(removed) {
-			if (!removed.length) {
-				return;
-			}
-
-			const ignoreNodes = ["target", "base", "script", "v:shapes"];
-
-			const d = removed.filter((r) => {
-				if (
-					typeof r.attribute !== "undefined" &&
-					(ignoreNodes.includes(r.attribute.nodeName) || r.attribute.nodeName.startsWith("xmlns:"))
-				) {
-					return false;
-				}
-				// inline comments
-				if (typeof r.element !== "undefined" && (r.element.nodeType === 8 || r.element.tagName === "SCRIPT")) {
-					return false;
-				}
-
-				return true;
-			});
-
-			if (d.length) {
-				console.log(d);
-			}
-		},
-
-		saveTags() {
-			const data = {
-				IDs: [this.message.ID],
-				Tags: this.messageTags,
-			};
-
-			this.put(this.resolve("/api/v1/tags"), data, () => {
-				window.scrollInPlace = true;
-				this.$emit("loadMessages");
-			});
-		},
-
-		// Convert plain text to HTML including anchor links.
-		// Only <a> tags are permitted in the output (enforced by DOMPurify).
-		textToHTML(s) {
-			// Strip the Unicode placeholder characters used below so that attacker-
-			// controlled input cannot pre-inject fake HTML tags via those chars.
-			let html = s.replace(/(˱˱˱|ˠˠˠ|˲˲˲)/gu, "");
-
-			// RFC2396 appendix E states angle brackets are recommended for text/plain emails to
-			// recognize potential spaces in between the URL
-			// @see https://www.rfc-editor.org/rfc/rfc2396#appendix-E
-			const angleLinks = /<((https?|ftp):\/\/[-\w@:%_+'!.~#?,&//=; ][^>]+)>/gim;
-			html = html.replace(angleLinks, "<˱˱˱a href=ˠˠˠ$1ˠˠˠ target=_blank rel=noopener˲˲˲$1˱˱˱/a˲˲˲>");
-
-			// find links without angle brackets, starting with http(s) or ftp
-			const regularLinks = /([^ˠ˲]\b)(((https?|ftp):\/\/[-\w@:%_+'!.~#?,&//=;]+))/gim;
-			html = html.replace(regularLinks, "$1˱˱˱a href=ˠˠˠ$2ˠˠˠ target=_blank rel=noopener˲˲˲$2˱˱˱/a˲˲˲");
-
-			// plain www links without https?:// prefix
-			const shortLinks = /(^|[^/])(www\.[\S]+(\b|$))/gim;
-			html = html.replace(
-				shortLinks,
-				"$1˱˱˱a href=ˠˠˠhttp://$2ˠˠˠ target=ˠˠˠ_blankˠˠˠ rel=ˠˠˠnoopenerˠˠˠ˲˲˲$2˱˱˱/a˲˲˲",
-			);
-
-			// escape to HTML & convert <>" characters back
-			html = html
-				.replace(/&/g, "&amp;")
-				.replace(/</g, "&lt;")
-				.replace(/>/g, "&gt;")
-				.replace(/"/g, "&quot;")
-				.replace(/'/g, "&#039;")
-				.replace(/˱˱˱/g, "<")
-				.replace(/˲˲˲/g, ">")
-				.replace(/ˠˠˠ/g, '"');
-
-			return DOMPurify.sanitize(html, {
-				ALLOWED_TAGS: ["a"],
-				ALLOWED_ATTR: ["href", "target", "rel"],
-			});
-		},
-	},
+const responsiveSizes = {
+	phone: "width: 322px; height: 570px",
+	tablet: "width: 768px; height: 1024px",
+	display: "width: 100%; height: 100%",
 };
+
+const hasAnyChecksEnabled = computed(() => {
+	return (
+		(mailbox.showHTMLCheck && props.message.HTML) ||
+		mailbox.showLinkCheck ||
+		(mailbox.showSpamCheck && mailbox.uiConfig.SpamAssassin)
+	);
+});
+
+const sanitizedHTML = computed(() => {
+	DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+		if (node.tagName !== "A" || (node.hasAttribute("href") && node.getAttribute("href").substring(0, 1) === "#")) {
+			return;
+		}
+		if ("target" in node) {
+			node.setAttribute("target", "_blank");
+			node.setAttribute("rel", "noopener noreferrer");
+		}
+		if (!node.hasAttribute("target") && (node.hasAttribute("xlink:href") || node.hasAttribute("href"))) {
+			node.setAttribute("xlink:show", "_blank");
+		}
+	});
+
+	return DOMPurify.sanitize(props.message.HTML, {
+		WHOLE_DOCUMENT: true,
+		SANITIZE_DOM: false,
+		ADD_TAGS: ["link", "meta", "o:p", "style"],
+		ADD_ATTR: [
+			"bordercolor",
+			"charset",
+			"content",
+			"hspace",
+			"http-equiv",
+			"itemprop",
+			"itemscope",
+			"itemtype",
+			"link",
+			"vertical-align",
+			"vlink",
+			"vspace",
+			"xml:lang",
+		],
+		FORBID_TAGS: ["script", "form"],
+		ALLOW_UNKNOWN_PROTOCOLS: true,
+	});
+});
+
+watch(messageTags, () => {
+	if (canSaveTags.value) {
+		saveTags();
+	}
+});
+
+watch(scaleHTMLPreview, (v) => {
+	if (v === "display") {
+		window.setTimeout(() => {
+			resizeIFrames();
+		}, 500);
+	}
+});
+
+function isHTMLTabSelected() {
+	showMobileButtons.value = navhtml.value && navhtml.value.classList.contains("active");
+}
+
+function resizeIframe(el) {
+	const i = el.target;
+	if (typeof i.contentWindow.document.body.scrollHeight === "number") {
+		i.style.height = i.contentWindow.document.body.scrollHeight + 50 + "px";
+	}
+}
+
+function resizeIFrames() {
+	if (scaleHTMLPreview.value !== "display") {
+		return;
+	}
+	const h = document.getElementById("preview-html");
+	if (h) {
+		if (typeof h.contentWindow.document.body.scrollHeight === "number") {
+			h.style.height = h.contentWindow.document.body.scrollHeight + 50 + "px";
+		}
+	}
+}
+
+function initRawIframe(el) {
+	const bodyStyles = window.getComputedStyle(document.body, null);
+	const bg = bodyStyles.getPropertyValue("background-color");
+	const txt = bodyStyles.getPropertyValue("color");
+
+	const body = el.target.contentWindow.document.querySelector("body");
+	if (body) {
+		body.style.color = txt;
+		body.style.backgroundColor = bg;
+	}
+
+	resizeIframe(el);
+}
+
+function renderUI() {
+	document.querySelector("#nav-tab button:not([disabled])").click();
+	document.activeElement.blur();
+	document.getElementById("message-view").scrollTop = 0;
+
+	isHTMLTabSelected();
+
+	document.querySelectorAll('button[data-bs-toggle="tab"]').forEach((listObj) => {
+		listObj.addEventListener("shown.bs.tab", () => {
+			isHTMLTabSelected();
+		});
+	});
+
+	const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+	[...tooltipTriggerList].map((tooltipTriggerEl) => new Tooltip(tooltipTriggerEl));
+
+	window.setTimeout(() => {
+		const p = document.getElementById("preview-html");
+		if (p && typeof p.contentWindow.document.body === "object") {
+			try {
+				const anchorEls = p.contentWindow.document.body.querySelectorAll("a");
+				for (let i = 0; i < anchorEls.length; i++) {
+					const anchorEl = anchorEls[i];
+					const href = anchorEl.getAttribute("href");
+
+					if (href && href.match(/^https?:\/\//i)) {
+						anchorEl.setAttribute("target", "_blank");
+					}
+				}
+			} catch {
+				// ignore errors when accessing the iframe content
+			}
+			resizeIFrames();
+		}
+	}, 500);
+
+	hljs.highlightAll();
+}
+
+function saveTags() {
+	const data = {
+		IDs: [props.message.ID],
+		Tags: messageTags.value,
+	};
+
+	put(resolve("/api/v1/tags"), data, () => {
+		window.scrollInPlace = true;
+		emit("loadMessages");
+	});
+}
+
+function textToHTML(s) {
+	let html = s.replace(/(˱˱˱|ˠˠˠ|˲˲˲)/gu, "");
+
+	const angleLinks = /<((https?|ftp):\/\/[-\w@:%_+'!.~#?,&//=; ][^>]+)>/gim;
+	html = html.replace(angleLinks, "<˱˱˱a href=ˠˠˠ$1ˠˠˠ target=_blank rel=noopener˲˲˲$1˱˱˱/a˲˲˲>");
+
+	const regularLinks = /([^ˠ˲]\b)(((https?|ftp):\/\/[-\w@:%_+'!.~#?,&//=;]+))/gim;
+	html = html.replace(regularLinks, "$1˱˱˱a href=ˠˠˠ$2ˠˠˠ target=_blank rel=noopener˲˲˲$2˱˱˱/a˲˲˲");
+
+	const shortLinks = /(^|[^/])(www\.[\S]+(\b|$))/gim;
+	html = html.replace(shortLinks, "$1˱˱˱a href=ˠˠˠhttp://$2ˠˠˠ target=ˠˠˠ_blankˠˠˠ rel=ˠˠˠnoopenerˠˠˠ˲˲˲$2˱˱˱/a˲˲˲");
+
+	html = html
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#039;")
+		.replace(/˱˱˱/g, "<")
+		.replace(/˲˲˲/g, ">")
+		.replace(/ˠˠˠ/g, '"');
+
+	return DOMPurify.sanitize(html, {
+		ALLOWED_TAGS: ["a"],
+		ALLOWED_ATTR: ["href", "target", "rel"],
+	});
+}
+
+onMounted(() => {
+	canSaveTags.value = false;
+	messageTags.value = props.message.Tags;
+	renderUI();
+
+	window.addEventListener("resize", resizeIFrames);
+
+	const headersTab = document.getElementById("nav-headers-tab");
+	headersTab.addEventListener("shown.bs.tab", () => {
+		loadHeaders.value = true;
+	});
+
+	const rawTab = document.getElementById("nav-raw-tab");
+	rawTab.addEventListener("shown.bs.tab", () => {
+		srcURI.value = resolve("/api/v1/message/" + props.message.ID + "/raw");
+		resizeIFrames();
+	});
+
+	get(resolve(`/api/v1/tags`), false, (response) => {
+		availableTags.value = response.data;
+		nextTick(() => {
+			Tags.init("select[multiple]");
+			window.setTimeout(() => {
+				canSaveTags.value = true;
+			}, 200);
+		});
+	});
+});
 </script>
 
 <template>

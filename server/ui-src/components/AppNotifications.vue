@@ -1,268 +1,236 @@
-<script>
-import CommonMixins from "../mixins/CommonMixins";
+<script setup>
+import { ref, onMounted, inject } from "vue";
 import { Toast } from "bootstrap";
 import { mailbox } from "../stores/mailbox";
 import { smsStore } from "../stores/sms";
 import { webhooksStore } from "../stores/webhooks";
-import { pagination } from "../stores/pagination";
+import { useCommon } from "../composables/useCommon";
 
-export default {
-	mixins: [CommonMixins],
+const eventBus = inject("eventBus");
+const { resolve } = useCommon();
 
-	// global event bus to handle message status changes
-	inject: ["eventBus"],
+const toastMessage = ref(false);
+const reconnectRefresh = ref(false);
+const socketURI = ref(false);
+const socketLastConnection = ref(0);
+const socketBreaks = ref(0);
+const pauseNotifications = ref(false);
+const version = ref(false);
+const clientErrors = ref([]);
 
-	data() {
-		return {
-			pagination,
-			mailbox,
-			smsStore,
-			webhooksStore,
-			toastMessage: false,
-			reconnectRefresh: false,
-			socketURI: false,
-			socketLastConnection: 0, // timestamp to track reconnection times & avoid reloading mailbox on short disconnections
-			socketBreaks: 0, // to track sockets that continually connect & disconnect, reset every 15s
-			pauseNotifications: false, // prevent spamming
-			version: false,
-			clientErrors: [], // errors received via websocket
+function browserNotify(title, message) {
+	if (!("Notification" in window)) {
+		return;
+	}
+
+	if (Notification.permission === "granted") {
+		const options = {
+			body: message,
+			icon: resolve("/notification.png"),
 		};
-	},
 
-	mounted() {
-		const d = document.getElementById("app");
-		if (d) {
-			this.version = d.dataset.version;
+		(() => new Notification(title, options))();
+	}
+}
+
+function setMessageToast(m) {
+	if (mailbox.notificationsEnabled || toastMessage.value) {
+		return;
+	}
+
+	toastMessage.value = m;
+
+	const el = document.getElementById("messageToast");
+	if (el) {
+		el.addEventListener("hidden.bs.toast", () => {
+			toastMessage.value = false;
+		});
+
+		Toast.getOrCreateInstance(el).show();
+	}
+}
+
+function closeToast() {
+	const el = document.getElementById("messageToast");
+	if (el) {
+		Toast.getOrCreateInstance(el).hide();
+	}
+}
+
+function addClientError(d) {
+	d.expire = Date.now() + 5000;
+	clientErrors.value.push(d);
+}
+
+function errorNotificationCron() {
+	window.setTimeout(() => {
+		clientErrors.value.forEach((err, idx) => {
+			if (err.expire < Date.now()) {
+				clientErrors.value.splice(idx, 1);
+			}
+		});
+		errorNotificationCron();
+	}, 1000);
+}
+
+function socketBreakReset() {
+	window.setTimeout(() => {
+		socketBreaks.value = 0;
+		socketBreakReset();
+	}, 15000);
+}
+
+function connect() {
+	const ws = new WebSocket(socketURI.value);
+	ws.onmessage = (e) => {
+		let response;
+		try {
+			response = JSON.parse(e.data);
+		} catch {
+			return;
 		}
 
-		const proto = location.protocol === "https:" ? "wss" : "ws";
-		this.socketURI = proto + "://" + document.location.host + this.resolve(`/api/events`);
+		if (response.Type === "new" && response.Data) {
+			eventBus.emit("new", response.Data);
 
-		this.socketBreakReset();
-		this.connect();
-
-		mailbox.notificationsSupported =
-			window.isSecureContext && "Notification" in window && Notification.permission !== "denied";
-		mailbox.notificationsEnabled = mailbox.notificationsSupported && Notification.permission === "granted";
-
-		this.errorNotificationCron();
-	},
-
-	methods: {
-		// websocket connect
-		connect() {
-			const ws = new WebSocket(this.socketURI);
-			ws.onmessage = (e) => {
-				let response;
-				try {
-					response = JSON.parse(e.data);
-				} catch {
-					return;
+			for (const i in response.Data.Tags) {
+				if (
+					mailbox.tags.findIndex((e) => {
+						return e.toLowerCase() === response.Data.Tags[i].toLowerCase();
+					}) < 0
+				) {
+					mailbox.tags.push(response.Data.Tags[i]);
+					mailbox.tags.sort((a, b) => {
+						return a.toLowerCase().localeCompare(b.toLowerCase());
+					});
 				}
+			}
 
-				// new messages
-				if (response.Type === "new" && response.Data) {
-					this.eventBus.emit("new", response.Data);
-
-					for (const i in response.Data.Tags) {
-						if (
-							mailbox.tags.findIndex((e) => {
-								return e.toLowerCase() === response.Data.Tags[i].toLowerCase();
-							}) < 0
-						) {
-							mailbox.tags.push(response.Data.Tags[i]);
-							mailbox.tags.sort((a, b) => {
-								return a.toLowerCase().localeCompare(b.toLowerCase());
-							});
-						}
-					}
-
-					// send notifications
-					if (!this.pauseNotifications) {
-						this.pauseNotifications = true;
-						const from = response.Data.From !== null ? response.Data.From.Address : "[unknown]";
-						const subject = String(response.Data.Subject ?? "").substring(0, 100);
-						this.browserNotify("New mail from: " + from, subject);
-						this.setMessageToast(response.Data);
-						// delay notifications by 2s
-						window.setTimeout(() => {
-							this.pauseNotifications = false;
-						}, 2000);
-					}
-				} else if (response.Type === "prune") {
-					// messages have been deleted, reload messages to adjust
-					window.scrollInPlace = true;
-					mailbox.refresh = true; // trigger refresh
-					window.setTimeout(() => {
-						mailbox.refresh = false;
-					}, 500);
-					this.eventBus.emit("prune");
-				} else if (response.Type === "stats" && response.Data) {
-					// refresh mailbox stats
-					mailbox.total = response.Data.Total;
-					mailbox.unread = response.Data.Unread;
-
-					// detect version updated, refresh is needed
-					if (this.version !== response.Data.Version) {
-						location.reload();
-					}
-				} else if (response.Type === "delete" && response.Data) {
-					// broadcast for components
-					this.eventBus.emit("delete", response.Data);
-				} else if (response.Type === "update" && response.Data) {
-					// broadcast for components
-					this.eventBus.emit("update", response.Data);
-				} else if (response.Type === "truncate") {
-					// broadcast for components
-					this.eventBus.emit("truncate");
-				} else if (response.Type === "sms" && response.Data) {
-					smsStore.total++;
-					if (!response.Data.Read) {
-						smsStore.unread++;
-					}
-					this.eventBus.emit("sms", response.Data);
-				} else if (response.Type === "sms_delete" && response.Data) {
-					smsStore.total = Math.max(0, smsStore.total - 1);
-					this.eventBus.emit("sms_delete", response.Data);
-				} else if (response.Type === "sms_truncate") {
-					smsStore.total = 0;
-					smsStore.unread = 0;
-					this.eventBus.emit("sms_truncate");
-				} else if (response.Type === "webhook" && response.Data) {
-					webhooksStore.total++;
-					if (!response.Data.Read) {
-						webhooksStore.unread++;
-					}
-					this.eventBus.emit("webhook", response.Data);
-				} else if (response.Type === "webhook_delete" && response.Data) {
-					webhooksStore.total = Math.max(0, webhooksStore.total - 1);
-					this.eventBus.emit("webhook_delete", response.Data);
-				} else if (response.Type === "webhook_truncate") {
-					webhooksStore.total = 0;
-					webhooksStore.unread = 0;
-					this.eventBus.emit("webhook_truncate");
-				} else if (response.Type === "error") {
-					// broadcast for components
-					this.addClientError(response.Data);
-				}
-			};
-
-			ws.onopen = () => {
-				mailbox.connected = true;
-				smsStore.connected = true;
-				this.socketLastConnection = Date.now();
-				if (this.reconnectRefresh) {
-					this.reconnectRefresh = false;
-					mailbox.refresh = true; // trigger refresh
-					window.setTimeout(() => {
-						mailbox.refresh = false;
-					}, 500);
-				}
-			};
-
-			ws.onclose = () => {
-				if (this.socketLastConnection === 0) {
-					// connection failed immediately after connecting to MessagePit implies proxy websockets aren't configured
-					console.log("Unable to connect to websocket, disabling websocket support");
-					return;
-				}
-
-				if (mailbox.connected) {
-					// count disconnections
-					this.socketBreaks++;
-				}
-
-				// set disconnected state
-				mailbox.connected = false;
-				smsStore.connected = false;
-
-				if (this.socketBreaks > 3) {
-					// give up after > 3 successful socket connections & disconnections within a 15 second window,
-					// something is not working right on their end, see issue #319
-					console.log("Unstable websocket connection, disabling websocket support");
-					return;
-				}
-				if (Date.now() - this.socketLastConnection > 5000) {
-					// only refresh mailbox if the last successful connection was broken for > 5 seconds
-					this.reconnectRefresh = true;
-				} else {
-					this.reconnectRefresh = false;
-				}
-
-				setTimeout(() => {
-					this.connect(); // reconnect
-				}, 1000);
-			};
-
-			ws.onerror = function () {
-				ws.close();
-			};
-		},
-
-		socketBreakReset() {
+			if (!pauseNotifications.value) {
+				pauseNotifications.value = true;
+				const from = response.Data.From !== null ? response.Data.From.Address : "[unknown]";
+				const subject = String(response.Data.Subject ?? "").substring(0, 100);
+				browserNotify("New mail from: " + from, subject);
+				setMessageToast(response.Data);
+				window.setTimeout(() => {
+					pauseNotifications.value = false;
+				}, 2000);
+			}
+		} else if (response.Type === "prune") {
+			window.scrollInPlace = true;
+			mailbox.refresh = true;
 			window.setTimeout(() => {
-				this.socketBreaks = 0;
-				this.socketBreakReset();
-			}, 15000);
-		},
+				mailbox.refresh = false;
+			}, 500);
+			eventBus.emit("prune");
+		} else if (response.Type === "stats" && response.Data) {
+			mailbox.total = response.Data.Total;
+			mailbox.unread = response.Data.Unread;
 
-		browserNotify(title, message) {
-			if (!("Notification" in window)) {
-				return;
+			if (version.value !== response.Data.Version) {
+				location.reload();
 			}
-
-			if (Notification.permission === "granted") {
-				const options = {
-					body: message,
-					icon: this.resolve("/notification.png"),
-				};
-
-				(() => new Notification(title, options))();
+		} else if (response.Type === "delete" && response.Data) {
+			eventBus.emit("delete", response.Data);
+		} else if (response.Type === "update" && response.Data) {
+			eventBus.emit("update", response.Data);
+		} else if (response.Type === "truncate") {
+			eventBus.emit("truncate");
+		} else if (response.Type === "sms" && response.Data) {
+			smsStore.total++;
+			if (!response.Data.Read) {
+				smsStore.unread++;
 			}
-		},
-
-		setMessageToast(m) {
-			// don't display if browser notifications are enabled, or a toast is already displayed
-			if (mailbox.notificationsEnabled || this.toastMessage) {
-				return;
+			eventBus.emit("sms", response.Data);
+		} else if (response.Type === "sms_delete" && response.Data) {
+			smsStore.total = Math.max(0, smsStore.total - 1);
+			eventBus.emit("sms_delete", response.Data);
+		} else if (response.Type === "sms_truncate") {
+			smsStore.total = 0;
+			smsStore.unread = 0;
+			eventBus.emit("sms_truncate");
+		} else if (response.Type === "webhook" && response.Data) {
+			webhooksStore.total++;
+			if (!response.Data.Read) {
+				webhooksStore.unread++;
 			}
+			eventBus.emit("webhook", response.Data);
+		} else if (response.Type === "webhook_delete" && response.Data) {
+			webhooksStore.total = Math.max(0, webhooksStore.total - 1);
+			eventBus.emit("webhook_delete", response.Data);
+		} else if (response.Type === "webhook_truncate") {
+			webhooksStore.total = 0;
+			webhooksStore.unread = 0;
+			eventBus.emit("webhook_truncate");
+		} else if (response.Type === "error") {
+			addClientError(response.Data);
+		}
+	};
 
-			this.toastMessage = m;
-
-			const el = document.getElementById("messageToast");
-			if (el) {
-				el.addEventListener("hidden.bs.toast", () => {
-					this.toastMessage = false;
-				});
-
-				Toast.getOrCreateInstance(el).show();
-			}
-		},
-
-		closeToast() {
-			const el = document.getElementById("messageToast");
-			if (el) {
-				Toast.getOrCreateInstance(el).hide();
-			}
-		},
-
-		addClientError(d) {
-			d.expire = Date.now() + 5000; // expire after 5s
-			this.clientErrors.push(d);
-		},
-
-		errorNotificationCron() {
+	ws.onopen = () => {
+		mailbox.connected = true;
+		smsStore.connected = true;
+		socketLastConnection.value = Date.now();
+		if (reconnectRefresh.value) {
+			reconnectRefresh.value = false;
+			mailbox.refresh = true;
 			window.setTimeout(() => {
-				this.clientErrors.forEach((err, idx) => {
-					if (err.expire < Date.now()) {
-						this.clientErrors.splice(idx, 1);
-					}
-				});
-				this.errorNotificationCron();
-			}, 1000);
-		},
-	},
-};
+				mailbox.refresh = false;
+			}, 500);
+		}
+	};
+
+	ws.onclose = () => {
+		if (socketLastConnection.value === 0) {
+			console.log("Unable to connect to websocket, disabling websocket support");
+			return;
+		}
+
+		if (mailbox.connected) {
+			socketBreaks.value++;
+		}
+
+		mailbox.connected = false;
+		smsStore.connected = false;
+
+		if (socketBreaks.value > 3) {
+			console.log("Unstable websocket connection, disabling websocket support");
+			return;
+		}
+		if (Date.now() - socketLastConnection.value > 5000) {
+			reconnectRefresh.value = true;
+		} else {
+			reconnectRefresh.value = false;
+		}
+
+		setTimeout(() => {
+			connect();
+		}, 1000);
+	};
+
+	ws.onerror = function () {
+		ws.close();
+	};
+}
+
+onMounted(() => {
+	const d = document.getElementById("app");
+	if (d) {
+		version.value = d.dataset.version;
+	}
+
+	const proto = location.protocol === "https:" ? "wss" : "ws";
+	socketURI.value = proto + "://" + document.location.host + resolve(`/api/events`);
+
+	socketBreakReset();
+	connect();
+
+	mailbox.notificationsSupported =
+		window.isSecureContext && "Notification" in window && Notification.permission !== "denied";
+	mailbox.notificationsEnabled = mailbox.notificationsSupported && Notification.permission === "granted";
+
+	errorNotificationCron();
+});
 </script>
 
 <template>

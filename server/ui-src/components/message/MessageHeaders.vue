@@ -1,77 +1,68 @@
-<script>
-import commonMixins from "../../mixins/CommonMixins";
+<script setup>
+import { ref, computed, onMounted } from "vue";
+import { useCommon } from "../../composables/useCommon";
 
-export default {
-	mixins: [commonMixins],
-
-	props: {
-		message: {
-			type: Object,
-			required: true,
-		},
+const props = defineProps({
+	message: {
+		type: Object,
+		required: true,
 	},
+});
 
-	data() {
-		return {
-			headers: false,
-			filter: "",
-		};
-	},
+const { get, resolve } = useCommon();
 
-	computed: {
-		filteredHeaders() {
-			if (this.filter === "") {
-				return this.headers;
+const headers = ref(false);
+const filter = ref("");
+
+const filteredHeaders = computed(() => {
+	if (filter.value === "") {
+		return headers.value;
+	}
+	const searchWords = filter.value
+		.toLowerCase()
+		.split(/\s+/)
+		.filter((x) => x.length > 0);
+
+	const filtered = {};
+	for (const k in headers.value) {
+		const values = headers.value[k];
+		const kLower = k.toLowerCase();
+		if (searchWords.every((w) => kLower.includes(w))) {
+			filtered[k] = values;
+		} else {
+			const matchingValues = values.filter((v) => {
+				const vLower = v.toLowerCase();
+				return searchWords.every((w) => vLower.includes(w));
+			});
+			if (matchingValues.length > 0) {
+				filtered[k] = matchingValues;
 			}
-			const searchWords = this.filter
-				.toLowerCase()
-				.split(/\s+/)
-				.filter((x) => x.length > 0);
+		}
+	}
 
-			const filtered = {};
-			for (const k in this.headers) {
-				const values = this.headers[k];
-				const kLower = k.toLowerCase();
-				if (searchWords.every((w) => kLower.includes(w))) {
-					filtered[k] = values;
-				} else {
-					const matchingValues = values.filter((v) => {
-						const vLower = v.toLowerCase();
-						return searchWords.every((w) => vLower.includes(w));
-					});
-					if (matchingValues.length > 0) {
-						filtered[k] = matchingValues;
-					}
-				}
-			}
+	return filtered;
+});
 
-			return filtered;
-		},
-	},
+function highlight(text) {
+	const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+	if (!filter.value || filter.value.trim() === "") {
+		return escaped;
+	}
+	const words = filter.value
+		.trim()
+		.split(/\s+/)
+		.filter((w) => w.length > 0)
+		.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+	const regex = new RegExp(words.join("|"), "gi");
+	return escaped.replace(regex, "<mark>$&</mark>");
+}
 
-	mounted() {
-		const uri = this.resolve("/api/v1/message/" + this.message.ID + "/headers");
-		this.get(uri, false, (response) => {
-			this.headers = response.data;
-		});
-	},
-
-	methods: {
-		highlight(text) {
-			const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-			if (!this.filter || this.filter.trim() === "") {
-				return escaped;
-			}
-			const words = this.filter
-				.trim()
-				.split(/\s+/)
-				.filter((w) => w.length > 0)
-				.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-			const regex = new RegExp(words.join("|"), "gi");
-			return escaped.replace(regex, "<mark>$&</mark>");
-		},
-	},
-};
+onMounted(() => {
+	const uri = resolve("/api/v1/message/" + props.message.ID + "/headers");
+	get(uri, false, (response) => {
+		headers.value = response.data;
+	});
+});
 </script>
 
 <template v-if="headers">

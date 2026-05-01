@@ -1,10 +1,4 @@
-<script>
-import CommonMixins from "../mixins/CommonMixins";
-
-export default {
-	mixins: [CommonMixins],
-};
-</script>
+<script setup></script>
 
 <template>
 	<div class="h-100 bg-primary d-flex align-items-center justify-content-center my-2 text-white">

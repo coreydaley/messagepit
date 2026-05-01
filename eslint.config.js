@@ -24,6 +24,14 @@ export default [
 	/* Prettier is responsible for formatting, so we disable conflicting rules */
 	eslintConfigPrettier,
 
+	/* Renderless components that intentionally have no template output */
+	{
+		files: ["**/AppBadge.vue", "**/AppFavicon.vue"],
+		rules: {
+			"vue/valid-template-root": "off",
+		},
+	},
+
 	/* Our custom rules */
 	{
 		rules: {

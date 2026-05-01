@@ -1,144 +1,125 @@
-<script>
+<script setup>
+import { ref, computed } from "vue";
 import { mailbox } from "../stores/mailbox";
-import CommonMixins from "../mixins/CommonMixins";
-import dayjs from "dayjs";
 import { pagination } from "../stores/pagination";
+import { useCommon } from "../composables/useCommon";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
 
-export default {
-	mixins: [CommonMixins],
+dayjs.extend(relativeTime);
 
-	props: {
-		// use different name to `loading` as that is already in use in CommonMixins
-		loadingMessages: {
-			type: Number,
-			default: 0,
-		},
-		messages: {
-			type: Array,
-			default: null,
-		},
-		routeBase: {
-			type: String,
-			default: "/view/",
-		},
-		emptyText: {
-			type: String,
-			default: "No messages in your mailbox",
-		},
+const props = defineProps({
+	loadingMessages: {
+		type: Number,
+		default: 0,
 	},
-
-	data() {
-		return {
-			mailbox,
-			pagination,
-		};
+	messages: {
+		type: Array,
+		default: null,
 	},
-
-	computed: {
-		msgList() {
-			return this.messages !== null ? this.messages : this.mailbox.messages;
-		},
+	routeBase: {
+		type: String,
+		default: "/view/",
 	},
-
-	created() {
-		const relativeTime = require("dayjs/plugin/relativeTime");
-		dayjs.extend(relativeTime);
+	emptyText: {
+		type: String,
+		default: "No messages in your mailbox",
 	},
+});
 
-	mounted() {
-		this.refreshUI();
-	},
+const { colorHash, getFileSize, getSearch } = useCommon();
 
-	methods: {
-		refreshUI() {
-			window.setTimeout(() => {
-				this.$forceUpdate();
-				this.refreshUI();
-			}, 30000);
-		},
+const tick = ref(0);
 
-		getRelativeCreated(message) {
-			const d = new Date(message.Created);
-			return dayjs(d).fromNow();
-		},
+setInterval(() => {
+	tick.value++;
+}, 30000);
 
-		getPrimaryEmailTo(message) {
-			if (message.To && message.To.length > 0) {
-				return message.To[0].Address;
+const msgList = computed(() => {
+	return props.messages !== null ? props.messages : mailbox.messages;
+});
+
+function getRelativeCreated(message) {
+	const d = new Date(message.Created);
+	return dayjs(d).fromNow();
+}
+
+function getPrimaryEmailTo(message) {
+	if (message.To && message.To.length > 0) {
+		return message.To[0].Address;
+	}
+
+	return "[ Undisclosed recipients ]";
+}
+
+function isSelected(id) {
+	return mailbox.selected.indexOf(id) !== -1;
+}
+
+function toggleSelected(e, id) {
+	e.preventDefault();
+
+	if (isSelected(id)) {
+		mailbox.selected = mailbox.selected.filter((ele) => {
+			return ele !== id;
+		});
+	} else {
+		mailbox.selected.push(id);
+	}
+}
+
+function selectRange(e, id) {
+	e.preventDefault();
+
+	let selecting = false;
+	const lastSelected = mailbox.selected.length > 0 && mailbox.selected[mailbox.selected.length - 1];
+	if (lastSelected === id) {
+		mailbox.selected = mailbox.selected.filter((ele) => {
+			return ele !== id;
+		});
+		return;
+	}
+
+	if (lastSelected === false) {
+		mailbox.selected.push(id);
+		return;
+	}
+
+	for (const d of mailbox.messages) {
+		if (selecting) {
+			if (!isSelected(d.ID)) {
+				mailbox.selected.push(d.ID);
 			}
-
-			return "[ Undisclosed recipients ]";
-		},
-
-		isSelected(id) {
-			return mailbox.selected.indexOf(id) !== -1;
-		},
-
-		toggleSelected(e, id) {
-			e.preventDefault();
-
-			if (this.isSelected(id)) {
-				mailbox.selected = mailbox.selected.filter((ele) => {
-					return ele !== id;
-				});
-			} else {
-				mailbox.selected.push(id);
+			if (d.ID === lastSelected || d.ID === id) {
+				break;
 			}
-		},
-
-		selectRange(e, id) {
-			e.preventDefault();
-
-			let selecting = false;
-			const lastSelected = mailbox.selected.length > 0 && mailbox.selected[mailbox.selected.length - 1];
-			if (lastSelected === id) {
-				mailbox.selected = mailbox.selected.filter((ele) => {
-					return ele !== id;
-				});
-				return;
+		} else if (d.ID === id || d.ID === lastSelected) {
+			if (!isSelected(d.ID)) {
+				mailbox.selected.push(d.ID);
 			}
+			selecting = true;
+		}
+	}
+}
 
-			if (lastSelected === false) {
-				mailbox.selected.push(id);
-				return;
-			}
-
-			for (const d of mailbox.messages) {
-				if (selecting) {
-					if (!this.isSelected(d.ID)) {
-						mailbox.selected.push(d.ID);
-					}
-					if (d.ID === lastSelected || d.ID === id) {
-						// reached backwards select
-						break;
-					}
-				} else if (d.ID === id || d.ID === lastSelected) {
-					if (!this.isSelected(d.ID)) {
-						mailbox.selected.push(d.ID);
-					}
-					selecting = true;
-				}
-			}
-		},
-
-		toTagUrl(t) {
-			if (t.match(/ /)) {
-				t = `"${t}"`;
-			}
-			const p = {
-				q: "tag:" + t,
-			};
-			if (pagination.limit !== pagination.defaultLimit) {
-				p.limit = pagination.limit.toString();
-			}
-			const params = new URLSearchParams(p);
-			return "/search?" + params.toString();
-		},
-	},
-};
+function toTagUrl(t) {
+	if (t.match(/ /)) {
+		t = `"${t}"`;
+	}
+	const p = {
+		q: "tag:" + t,
+	};
+	if (pagination.limit !== pagination.defaultLimit) {
+		p.limit = pagination.limit.toString();
+	}
+	const params = new URLSearchParams(p);
+	return "/search?" + params.toString();
+}
 </script>
 
 <template>
+	<!-- tick drives relative time updates -->
+	<div :data-tick="tick" class="d-none"></div>
 	<template v-if="msgList && msgList.length">
 		<div class="list-group my-2">
 			<RouterLink

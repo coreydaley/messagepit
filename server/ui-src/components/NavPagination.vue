@@ -1,92 +1,79 @@
-<script>
-import CommonMixins from "../mixins/CommonMixins";
+<script setup>
+import { computed } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { mailbox } from "../stores/mailbox";
 import { limitOptions, pagination } from "../stores/pagination";
+import { useCommon } from "../composables/useCommon";
 
-export default {
-	mixins: [CommonMixins],
-
-	props: {
-		total: {
-			type: Number,
-			default: 0,
-		},
-		count: {
-			type: Number,
-			default: null,
-		},
+const props = defineProps({
+	total: {
+		type: Number,
+		default: 0,
 	},
-
-	data() {
-		return {
-			pagination,
-			mailbox,
-			limitOptions,
-		};
+	count: {
+		type: Number,
+		default: null,
 	},
+});
 
-	computed: {
-		canPrev() {
-			return pagination.start > 0;
-		},
+const route = useRoute();
+const router = useRouter();
+const { formatNumber } = useCommon();
 
-		canNext() {
-			const c = this.count !== null ? this.count : mailbox.messages.length;
-			return this.total > pagination.start + c;
-		},
+const canPrev = computed(() => pagination.start > 0);
 
-		// returns the number of next X messages
-		nextMessages() {
-			let t = pagination.start + parseInt(pagination.limit, 10);
-			if (t > this.total) {
-				t = this.total;
-			}
+const canNext = computed(() => {
+	const c = props.count !== null ? props.count : mailbox.messages.length;
+	return props.total > pagination.start + c;
+});
 
-			return t;
-		},
-	},
+const nextMessages = computed(() => {
+	let t = pagination.start + parseInt(pagination.limit, 10);
+	if (t > props.total) {
+		t = props.total;
+	}
+	return t;
+});
 
-	methods: {
-		changeLimit() {
-			pagination.start = 0;
-			this.updateQueryParams();
-		},
+function updateQueryParams() {
+	const path = route.path;
+	const p = {
+		...route.query,
+	};
+	if (pagination.start > 0) {
+		p.start = pagination.start.toString();
+	} else {
+		delete p.start;
+	}
+	if (pagination.limit !== pagination.defaultLimit) {
+		p.limit = pagination.limit.toString();
+	} else {
+		delete p.limit;
+	}
+	const params = new URLSearchParams(p);
+	router.push(path + "?" + params.toString());
+}
 
-		viewNext() {
-			pagination.start = parseInt(pagination.start, 10) + parseInt(pagination.limit, 10);
-			this.updateQueryParams();
-		},
+function changeLimit() {
+	pagination.start = 0;
+	updateQueryParams();
+}
 
-		viewPrev() {
-			let s = pagination.start - pagination.limit;
-			if (s < 0) {
-				s = 0;
-			}
-			pagination.start = s;
-			this.updateQueryParams();
-		},
+function viewNext() {
+	pagination.start = parseInt(pagination.start, 10) + parseInt(pagination.limit, 10);
+	updateQueryParams();
+}
 
-		updateQueryParams() {
-			const path = this.$route.path;
-			const p = {
-				...this.$route.query,
-			};
-			if (pagination.start > 0) {
-				p.start = pagination.start.toString();
-			} else {
-				delete p.start;
-			}
-			if (pagination.limit !== pagination.defaultLimit) {
-				p.limit = pagination.limit.toString();
-			} else {
-				delete p.limit;
-			}
-			const params = new URLSearchParams(p);
-			this.$router.push(path + "?" + params.toString());
-		},
-	},
-};
+function viewPrev() {
+	let s = pagination.start - pagination.limit;
+	if (s < 0) {
+		s = 0;
+	}
+	pagination.start = s;
+	updateQueryParams();
+}
 </script>
+
 <template>
 	<div class="d-flex align-items-center justify-content-center gap-2 py-2 border-top">
 		<button

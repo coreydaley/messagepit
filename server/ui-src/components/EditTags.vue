@@ -1,76 +1,63 @@
-<script>
-import CommonMixins from "../mixins/CommonMixins";
+<script setup>
+import { ref, watch } from "vue";
 import { mailbox } from "../stores/mailbox";
+import { useCommon } from "../composables/useCommon";
 
-export default {
-	mixins: [CommonMixins],
+const { del, put, resolve } = useCommon();
 
-	data() {
-		return {
-			mailbox,
-			editableTags: [],
-			validTagRe: /^([a-zA-Z0-9\- ._@]){1,100}$/,
-			tagToDelete: false,
-		};
+const editableTags = ref([]);
+const tagToDelete = ref(false);
+
+watch(
+	() => mailbox.tags,
+	(tags) => {
+		editableTags.value = [];
+		tags.forEach((t) => {
+			editableTags.value.push({ before: t, after: t });
+		});
 	},
+	{ deep: true },
+);
 
-	watch: {
-		"mailbox.tags": {
-			handler(tags) {
-				this.editableTags = [];
-				tags.forEach((t) => {
-					this.editableTags.push({ before: t, after: t });
-				});
-			},
-			deep: true,
-		},
-	},
+function validTag(t) {
+	if (!t.after.match(/^([a-zA-Z0-9\- ._@]){1,100}$/)) {
+		return false;
+	}
 
-	methods: {
-		validTag(t) {
-			if (!t.after.match(/^([a-zA-Z0-9\- ._@]){1,100}$/)) {
-				return false;
-			}
+	const lower = t.after.toLowerCase();
+	for (let x = 0; x < editableTags.value.length; x++) {
+		if (editableTags.value[x].before !== t.before && lower === editableTags.value[x].before.toLowerCase()) {
+			return false;
+		}
+	}
 
-			const lower = t.after.toLowerCase();
-			for (let x = 0; x < this.editableTags.length; x++) {
-				if (this.editableTags[x].before !== t.before && lower === this.editableTags[x].before.toLowerCase()) {
-					return false;
-				}
-			}
+	return true;
+}
 
-			return true;
-		},
+function renameTag(t) {
+	if (!validTag(t) || t.before === t.after) {
+		return;
+	}
 
-		renameTag(t) {
-			if (!this.validTag(t) || t.before === t.after) {
-				return;
-			}
+	put(resolve(`/api/v1/tags/` + encodeURI(t.before)), { Name: t.after }, () => {
+		// the API triggers a reload via websockets
+	});
+}
 
-			this.put(this.resolve(`/api/v1/tags/` + encodeURI(t.before)), { Name: t.after }, () => {
-				// the API triggers a reload via websockets
-			});
-		},
+function deleteTag() {
+	del(resolve(`/api/v1/tags/` + encodeURI(tagToDelete.value.before)), null, () => {
+		// the API triggers a reload via websockets
+		tagToDelete.value = false;
+	});
+}
 
-		deleteTag() {
-			this.delete(this.resolve(`/api/v1/tags/` + encodeURI(this.tagToDelete.before)), null, () => {
-				// the API triggers a reload via websockets
-				this.tagToDelete = false;
-			});
-		},
-
-		resetTagEdit(t) {
-			for (let x = 0; x < this.editableTags.length; x++) {
-				if (
-					this.editableTags[x].before !== t.before &&
-					this.editableTags[x].before !== this.editableTags[x].after
-				) {
-					this.editableTags[x].after = this.editableTags[x].before;
-				}
-			}
-		},
-	},
-};
+function resetTagEdit(t) {
+	for (let x = 0; x < editableTags.value.length; x++) {
+		if (editableTags.value[x].before !== t.before && editableTags.value[x].before !== editableTags.value[x].after) {
+			editableTags.value[x].after = editableTags.value[x].before;
+		}
+	}
+}
 </script>
 
 <template>

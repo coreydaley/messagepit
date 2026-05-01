@@ -1,203 +1,179 @@
-<script>
+<script setup>
+import { ref, computed, watch, onMounted, onUnmounted, inject, nextTick } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import About from "../components/AppAbout.vue";
 import AjaxLoader from "../components/AjaxLoader.vue";
-import CommonMixins from "../mixins/CommonMixins";
+import { useCommon } from "../composables/useCommon";
 import { smsStore } from "../stores/sms";
 import dayjs from "dayjs";
 
-export default {
-	components: {
-		About,
-		AjaxLoader,
-	},
+const route = useRoute();
+const router = useRouter();
+const eventBus = inject("eventBus");
 
-	mixins: [CommonMixins],
+const { loading, get, del, put, resolve, formatNumber } = useCommon();
 
-	inject: ["eventBus"],
+const message = ref(false);
+const messagesList = ref([]);
+const errorMessage = ref(false);
+const tick = ref(0);
 
-	data() {
-		return {
-			smsStore,
-			message: false,
-			messagesList: [],
-			errorMessage: false,
-		};
-	},
+const previousID = computed(() => {
+	const l = messagesList.value.length;
+	if (!message.value || !l) return false;
+	let id = false;
+	for (let x = 0; x < l; x++) {
+		if (messagesList.value[x].ID === message.value.ID) return id;
+		id = messagesList.value[x].ID;
+	}
+	return false;
+});
 
-	computed: {
-		previousID() {
-			const l = this.messagesList.length;
-			if (!this.message || !l) return false;
-			let id = false;
-			for (let x = 0; x < l; x++) {
-				if (this.messagesList[x].ID === this.message.ID) return id;
-				id = this.messagesList[x].ID;
+const nextID = computed(() => {
+	const l = messagesList.value.length;
+	if (!message.value || !l) return false;
+	let id = false;
+	for (let x = l - 1; x > 0; x--) {
+		if (messagesList.value[x].ID === message.value.ID) return id;
+		id = messagesList.value[x].ID;
+	}
+	return id;
+});
+
+function loadMessage() {
+	message.value = false;
+	const id = route.params.id;
+	get(
+		resolve(`/api/v1/sms/message/${id}`),
+		false,
+		(response) => {
+			errorMessage.value = false;
+			message.value = response.data;
+			if (!message.value.Read) {
+				put(resolve(`/api/v1/sms/message/${id}/read`), {}, () => {
+					message.value.Read = true;
+					handleWSUpdate({ ID: id, Read: true });
+					if (smsStore.unread > 0) smsStore.unread--;
+				});
 			}
-			return false;
+			nextTick(() => scrollSidebarToCurrent());
 		},
-
-		nextID() {
-			const l = this.messagesList.length;
-			if (!this.message || !l) return false;
-			let id = false;
-			for (let x = l - 1; x > 0; x--) {
-				if (this.messagesList[x].ID === this.message.ID) return id;
-				id = this.messagesList[x].ID;
-			}
-			return id;
+		() => {
+			errorMessage.value = "Message not found";
 		},
-	},
+	);
+}
 
-	watch: {
-		$route() {
-			this.loadMessage();
-		},
-	},
+function loadMessagesList() {
+	get(resolve("/api/v1/sms/messages"), { limit: 50 }, (response) => {
+		smsStore.total = response.data.total;
+		smsStore.unread = response.data.unread;
+		smsStore.messages = response.data.messages;
+		messagesList.value = [...smsStore.messages];
+	});
+}
 
-	created() {
-		const relativeTime = require("dayjs/plugin/relativeTime");
-		dayjs.extend(relativeTime);
-	},
+function getRelativeCreated(msg) {
+	return dayjs(new Date(msg.Created)).fromNow();
+}
 
-	mounted() {
-		this.messagesList = [...smsStore.messages];
-		if (!this.messagesList.length) {
-			this.loadMessagesList();
+function getAbsoluteCreated(msg) {
+	return dayjs(new Date(msg.Created)).format("ddd, D MMM YYYY, h:mm a");
+}
+
+function isActive(id) {
+	return message.value && message.value.ID === id;
+}
+
+function scrollSidebarToCurrent() {
+	const cont = document.getElementById("SMSList");
+	if (!cont) return;
+	const c = cont.querySelector(".active");
+	if (c) {
+		const outer = cont.getBoundingClientRect();
+		const li = c.getBoundingClientRect();
+		if (outer.top > li.top || outer.bottom < li.bottom) {
+			c.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
 		}
-		this.loadMessage();
-		this.refreshUI();
-		this.eventBus.on("sms", this.handleWSNew);
-		this.eventBus.on("sms_delete", this.handleWSDelete);
-		this.eventBus.on("sms_truncate", this.handleWSTruncate);
-	},
+	}
+}
 
-	unmounted() {
-		this.eventBus.off("sms", this.handleWSNew);
-		this.eventBus.off("sms_delete", this.handleWSDelete);
-		this.eventBus.off("sms_truncate", this.handleWSTruncate);
-	},
+function deleteMessage() {
+	const id = message.value.ID;
+	const goToID = nextID.value ? nextID.value : previousID.value;
+	del(resolve(`/api/v1/sms/message/${id}`), {}, () => {
+		if (goToID) return router.push(`/sms/view/${goToID}`);
+		return router.push("/sms");
+	});
+}
 
-	methods: {
-		loadMessage() {
-			this.message = false;
-			const id = this.$route.params.id;
-			this.get(
-				this.resolve(`/api/v1/sms/message/${id}`),
-				false,
-				(response) => {
-					this.errorMessage = false;
-					this.message = response.data;
-					if (!this.message.Read) {
-						this.put(this.resolve(`/api/v1/sms/message/${id}/read`), {}, () => {
-							this.message.Read = true;
-							this.handleWSUpdate({ ID: id, Read: true });
-							if (smsStore.unread > 0) smsStore.unread--;
-						});
-					}
-					this.$nextTick(() => this.scrollSidebarToCurrent());
-				},
-				() => {
-					this.errorMessage = "Message not found";
-				},
-			);
-		},
+function linkify(text) {
+	const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+	return escaped.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+}
 
-		loadMessagesList() {
-			this.get(this.resolve("/api/v1/sms/messages"), { limit: 50 }, (response) => {
-				smsStore.total = response.data.total;
-				smsStore.unread = response.data.unread;
-				smsStore.messages = response.data.messages;
-				this.messagesList = [...smsStore.messages];
-			});
-		},
-
-		refreshUI() {
-			window.setTimeout(() => {
-				this.$forceUpdate();
-				this.refreshUI();
-			}, 30000);
-		},
-
-		getRelativeCreated(msg) {
-			return dayjs(new Date(msg.Created)).fromNow();
-		},
-
-		getAbsoluteCreated(msg) {
-			return dayjs(new Date(msg.Created)).format("ddd, D MMM YYYY, h:mm a");
-		},
-
-		isActive(id) {
-			return this.message && this.message.ID === id;
-		},
-
-		scrollSidebarToCurrent() {
-			const cont = document.getElementById("SMSList");
-			if (!cont) return;
-			const c = cont.querySelector(".active");
-			if (c) {
-				const outer = cont.getBoundingClientRect();
-				const li = c.getBoundingClientRect();
-				if (outer.top > li.top || outer.bottom < li.bottom) {
-					c.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
-				}
-			}
-		},
-
-		deleteMessage() {
-			const id = this.message.ID;
-			const goToID = this.nextID ? this.nextID : this.previousID;
-			this.delete(this.resolve(`/api/v1/sms/message/${id}`), {}, () => {
-				if (goToID) {
-					return this.$router.push(`/sms/view/${goToID}`);
-				}
-				return this.$router.push("/sms");
-			});
-		},
-
-		linkify(text) {
-			const escaped = text
-				.replace(/&/g, "&amp;")
-				.replace(/</g, "&lt;")
-				.replace(/>/g, "&gt;")
-				.replace(/"/g, "&quot;");
-			return escaped.replace(
-				/(https?:\/\/[^\s]+)/g,
-				'<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>',
-			);
-		},
-
-		handleWSNew(data) {
-			this.messagesList.unshift(data);
-			smsStore.messages.unshift(data);
-		},
-
-		handleWSDelete(id) {
-			this.messagesList = this.messagesList.filter((m) => m.ID !== id);
-			smsStore.messages = smsStore.messages.filter((m) => m.ID !== id);
-			if (this.message && this.message.ID === id) {
-				this.$router.push("/sms");
-			}
-		},
-
-		handleWSTruncate() {
-			this.messagesList = [];
-			this.$router.push("/sms");
-		},
-
-		handleWSUpdate(data) {
-			for (let i = 0; i < this.messagesList.length; i++) {
-				if (this.messagesList[i].ID === data.ID) {
-					this.messagesList[i] = { ...this.messagesList[i], ...data };
-					break;
-				}
-			}
-		},
-	},
+const handleWSNew = (data) => {
+	messagesList.value.unshift(data);
+	smsStore.messages.unshift(data);
 };
+
+const handleWSDelete = (id) => {
+	messagesList.value = messagesList.value.filter((m) => m.ID !== id);
+	smsStore.messages = smsStore.messages.filter((m) => m.ID !== id);
+	if (message.value && message.value.ID === id) {
+		router.push("/sms");
+	}
+};
+
+const handleWSTruncate = () => {
+	messagesList.value = [];
+	router.push("/sms");
+};
+
+function handleWSUpdate(data) {
+	for (let i = 0; i < messagesList.value.length; i++) {
+		if (messagesList.value[i].ID === data.ID) {
+			messagesList.value[i] = { ...messagesList.value[i], ...data };
+			break;
+		}
+	}
+}
+
+watch(route, () => {
+	loadMessage();
+});
+
+let tickIntervalId;
+
+onMounted(() => {
+	messagesList.value = [...smsStore.messages];
+	if (!messagesList.value.length) {
+		loadMessagesList();
+	}
+	loadMessage();
+	tickIntervalId = setInterval(() => {
+		tick.value++;
+	}, 30000);
+	eventBus.on("sms", handleWSNew);
+	eventBus.on("sms_delete", handleWSDelete);
+	eventBus.on("sms_truncate", handleWSTruncate);
+});
+
+onUnmounted(() => {
+	clearInterval(tickIntervalId);
+	eventBus.off("sms", handleWSNew);
+	eventBus.off("sms_delete", handleWSDelete);
+	eventBus.off("sms_truncate", handleWSTruncate);
+});
 </script>
 
 <template>
-	<div class="navbar navbar-expand-lg row flex-shrink-0 bg-primary text-white d-print-none" data-bs-theme="dark">
+	<!-- tick drives relative time updates -->
+	<div
+		class="navbar navbar-expand-lg row flex-shrink-0 bg-primary text-white d-print-none"
+		data-bs-theme="dark"
+		:data-tick="tick"
+	>
 		<div class="d-none d-xl-block col-xl-3 col-auto pe-0">
 			<RouterLink to="/sms" class="navbar-brand text-white me-0">
 				<i class="bi bi-funnel-fill"></i>

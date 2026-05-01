@@ -1,66 +1,51 @@
-<script>
+<script setup>
 import NavSelected from "../components/NavSelected.vue";
 import AjaxLoader from "./AjaxLoader.vue";
-import CommonMixins from "../mixins/CommonMixins";
+import { useRouter } from "vue-router";
 import { mailbox } from "../stores/mailbox";
 import { pagination } from "../stores/pagination";
+import { useCommon } from "../composables/useCommon";
 
-export default {
-	components: {
-		NavSelected,
-		AjaxLoader,
+const emit = defineEmits(["loadMessages"]);
+
+const router = useRouter();
+const { loading, del, put, resolve, formatNumber, getPaginationParams, hideNav } = useCommon();
+
+defineProps({
+	modals: {
+		type: Boolean,
+		default: false,
 	},
+});
 
-	mixins: [CommonMixins],
+function reloadInbox() {
+	const paginationParams = getPaginationParams();
+	const reload = !paginationParams?.start;
 
-	props: {
-		modals: {
-			type: Boolean,
-			default: false,
-		},
-	},
+	router.push("/");
+	if (reload) {
+		loadMessages();
+	}
+}
 
-	emits: ["loadMessages"],
+function loadMessages() {
+	hideNav();
+	emit("loadMessages");
+}
 
-	data() {
-		return {
-			mailbox,
-			pagination,
-		};
-	},
+function markAllRead() {
+	put(resolve(`/api/v1/messages`), { read: true }, () => {
+		window.scrollInPlace = true;
+		loadMessages();
+	});
+}
 
-	methods: {
-		reloadInbox() {
-			const paginationParams = this.getPaginationParams();
-			const reload = !paginationParams?.start;
-
-			this.$router.push("/");
-			if (reload) {
-				// already on first page, reload messages
-				this.loadMessages();
-			}
-		},
-
-		loadMessages() {
-			this.hideNav(); // hide mobile menu
-			this.$emit("loadMessages");
-		},
-
-		markAllRead() {
-			this.put(this.resolve(`/api/v1/messages`), { read: true }, () => {
-				window.scrollInPlace = true;
-				this.loadMessages();
-			});
-		},
-
-		deleteAllMessages() {
-			this.delete(this.resolve(`/api/v1/messages`), false, () => {
-				pagination.start = 0;
-				this.loadMessages();
-			});
-		},
-	},
-};
+function deleteAllMessages() {
+	del(resolve(`/api/v1/messages`), false, () => {
+		pagination.start = 0;
+		loadMessages();
+	});
+}
 </script>
 
 <template>

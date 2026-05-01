@@ -1,80 +1,67 @@
-<script>
-import CommonMixins from "../mixins/CommonMixins";
+<script setup>
+import { useRouter } from "vue-router";
 import { mailbox } from "../stores/mailbox";
 import { pagination } from "../stores/pagination";
+import { useCommon } from "../composables/useCommon";
 
-export default {
-	mixins: [CommonMixins],
+const router = useRouter();
+const { colorHash, hideNav } = useCommon();
 
-	data() {
-		return {
-			mailbox,
-			pagination,
-		};
-	},
+function inSearch(tag) {
+	const urlParams = new URLSearchParams(window.location.search);
+	const query = urlParams.get("q");
+	if (!query) {
+		return false;
+	}
 
-	methods: {
-		// test whether a tag is currently being searched for (in the URL)
-		inSearch(tag) {
-			const urlParams = new URLSearchParams(window.location.search);
-			const query = urlParams.get("q");
-			if (!query) {
-				return false;
-			}
+	const re = new RegExp(`(^|\\s)tag:("${tag}"|${tag}\\b)`, "i");
+	return query.match(re);
+}
 
-			const re = new RegExp(`(^|\\s)tag:("${tag}"|${tag}\\b)`, "i");
-			return query.match(re);
-		},
+function toggleTag(e, tag) {
+	e.preventDefault();
 
-		// toggle a tag search in the search URL, add or remove it accordingly
-		toggleTag(e, tag) {
-			e.preventDefault();
+	const urlParams = new URLSearchParams(window.location.search);
+	let query = urlParams.get("q") ? urlParams.get("q") : "";
 
-			const urlParams = new URLSearchParams(window.location.search);
-			let query = urlParams.get("q") ? urlParams.get("q") : "";
+	const re = new RegExp(`(^|\\s)((-|\\!)?tag:"?${tag}"?)($|\\s)`, "i");
 
-			const re = new RegExp(`(^|\\s)((-|\\!)?tag:"?${tag}"?)($|\\s)`, "i");
+	if (query.match(re)) {
+		query = query.replace(re, "$1$4");
+	} else {
+		if (tag.match(/ /)) {
+			tag = `"${tag}"`;
+		}
+		query = query + " tag:" + tag;
+	}
 
-			if (query.match(re)) {
-				// remove is exists
-				query = query.replace(re, "$1$4");
-			} else {
-				// add to query
-				if (tag.match(/ /)) {
-					tag = `"${tag}"`;
-				}
-				query = query + " tag:" + tag;
-			}
+	query = query.trim();
 
-			query = query.trim();
+	if (query === "") {
+		router.push("/");
+	} else {
+		const params = new URLSearchParams({
+			q: query,
+			start: pagination.start.toString(),
+			limit: pagination.limit.toString(),
+		});
+		router.push("/search?" + params.toString());
+	}
+}
 
-			if (query === "") {
-				this.$router.push("/");
-			} else {
-				const params = new URLSearchParams({
-					q: query,
-					start: pagination.start.toString(),
-					limit: pagination.limit.toString(),
-				});
-				this.$router.push("/search?" + params.toString());
-			}
-		},
-
-		toTagUrl(t) {
-			if (t.match(/ /)) {
-				t = `"${t}"`;
-			}
-			const p = {
-				q: "tag:" + t,
-			};
-			if (pagination.limit !== pagination.defaultLimit) {
-				p.limit = pagination.limit.toString();
-			}
-			const params = new URLSearchParams(p);
-			return "/search?" + params.toString();
-		},
-	},
-};
+function toTagUrl(t) {
+	if (t.match(/ /)) {
+		t = `"${t}"`;
+	}
+	const p = {
+		q: "tag:" + t,
+	};
+	if (pagination.limit !== pagination.defaultLimit) {
+		p.limit = pagination.limit.toString();
+	}
+	const params = new URLSearchParams(p);
+	return "/search?" + params.toString();
+}
 </script>
 
 <template>

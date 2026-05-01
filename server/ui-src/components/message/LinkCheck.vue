@@ -1,165 +1,142 @@
-<script>
+<script setup>
+import { ref, computed, watch, onMounted } from "vue";
 import axios from "axios";
-import commonMixins from "../../mixins/CommonMixins";
+import { useCommon } from "../../composables/useCommon";
 
-export default {
-	mixins: [commonMixins],
-
-	props: {
-		message: {
-			type: Object,
-			required: true,
-		},
+const props = defineProps({
+	message: {
+		type: Object,
+		required: true,
 	},
+});
 
-	emits: ["setLinkErrors"],
+const emit = defineEmits(["setLinkErrors"]);
 
-	data() {
-		return {
-			error: false,
-			autoScan: false,
-			followRedirects: false,
-			check: false,
-			loaded: false,
-			loading: false,
-		};
-	},
+const { resolve, formatNumber } = useCommon();
 
-	computed: {
-		groupedStatuses() {
-			const results = {};
+const error = ref(false);
+const autoScan = ref(false);
+const followRedirects = ref(false);
+const check = ref(false);
+const loaded = ref(false);
+const loading = ref(false);
 
-			if (!this.check) {
-				return results;
+const groupedStatuses = computed(() => {
+	const results = {};
+
+	if (!check.value) {
+		return results;
+	}
+
+	check.value.Links.forEach((r) => {
+		if (!results[r.StatusCode]) {
+			let css = "";
+			if (r.StatusCode >= 400 || r.StatusCode === 0) {
+				css = "text-danger";
+			} else if (r.StatusCode >= 300) {
+				css = "text-info";
 			}
 
-			// group by status
-			this.check.Links.forEach((r) => {
-				if (!results[r.StatusCode]) {
-					let css = "";
-					if (r.StatusCode >= 400 || r.StatusCode === 0) {
-						css = "text-danger";
-					} else if (r.StatusCode >= 300) {
-						css = "text-info";
-					}
-
-					if (r.StatusCode === 0) {
-						r.Status = "Cannot connect to server";
-					}
-					results[r.StatusCode] = {
-						StatusCode: r.StatusCode,
-						Status: r.Status,
-						Class: css,
-						URLS: [],
-					};
-				}
-				results[r.StatusCode].URLS.push(r.URL);
-			});
-
-			const newArr = [];
-
-			for (const i in results) {
-				newArr.push(results[i]);
+			if (r.StatusCode === 0) {
+				r.Status = "Cannot connect to server";
 			}
-
-			// sort statuses
-			const sorted = newArr.sort((a, b) => {
-				if (a.StatusCode === 0) {
-					return false;
-				}
-				return a.StatusCode < b.StatusCode;
-			});
-
-			return sorted;
-		},
-	},
-
-	watch: {
-		autoScan(v) {
-			if (!this.loaded) {
-				return;
-			}
-			if (v) {
-				localStorage.setItem("LinkCheckAutoScan", true);
-				if (!this.check) {
-					this.doCheck();
-				}
-			} else {
-				localStorage.removeItem("LinkCheckAutoScan");
-			}
-		},
-		followRedirects(v) {
-			if (!this.loaded) {
-				return;
-			}
-			if (v) {
-				localStorage.setItem("LinkCheckFollowRedirects", true);
-			} else {
-				localStorage.removeItem("LinkCheckFollowRedirects");
-			}
-			if (this.check) {
-				this.doCheck();
-			}
-		},
-	},
-
-	created() {
-		this.autoScan = localStorage.getItem("LinkCheckAutoScan");
-		this.followRedirects = localStorage.getItem("LinkCheckFollowRedirects");
-	},
-
-	mounted() {
-		this.loaded = true;
-		if (this.autoScan) {
-			this.doCheck();
+			results[r.StatusCode] = {
+				StatusCode: r.StatusCode,
+				Status: r.Status,
+				Class: css,
+				URLS: [],
+			};
 		}
-	},
+		results[r.StatusCode].URLS.push(r.URL);
+	});
 
-	methods: {
-		doCheck() {
-			this.check = false;
-			this.loading = true;
-			let uri = this.resolve("/api/v1/message/" + this.message.ID + "/link-check");
-			if (this.followRedirects) {
-				uri += "?follow=true";
+	const newArr = [];
+
+	for (const i in results) {
+		newArr.push(results[i]);
+	}
+
+	const sorted = newArr.sort((a, b) => {
+		if (a.StatusCode === 0) {
+			return false;
+		}
+		return a.StatusCode < b.StatusCode;
+	});
+
+	return sorted;
+});
+
+function doCheck() {
+	check.value = false;
+	loading.value = true;
+	let uri = resolve("/api/v1/message/" + props.message.ID + "/link-check");
+	if (followRedirects.value) {
+		uri += "?follow=true";
+	}
+
+	axios
+		.get(uri, null)
+		.then((result) => {
+			check.value = result.data;
+			error.value = false;
+
+			emit("setLinkErrors", result.data.Errors);
+		})
+		.catch((err) => {
+			if (err.response && err.response.data) {
+				if (err.response.data.Error) {
+					error.value = err.response.data.Error;
+				} else {
+					error.value = err.response.data;
+				}
+			} else if (err.request) {
+				error.value = "Error sending data to the server. Please try again.";
+			} else {
+				error.value = err.message;
 			}
+		})
+		.then(() => {
+			loading.value = false;
+		});
+}
 
-			// ignore any error, do not show loader
-			axios
-				.get(uri, null)
-				.then((result) => {
-					this.check = result.data;
-					this.error = false;
+watch(autoScan, (v) => {
+	if (!loaded.value) {
+		return;
+	}
+	if (v) {
+		localStorage.setItem("LinkCheckAutoScan", true);
+		if (!check.value) {
+			doCheck();
+		}
+	} else {
+		localStorage.removeItem("LinkCheckAutoScan");
+	}
+});
 
-					this.$emit("setLinkErrors", result.data.Errors);
-				})
-				.catch((error) => {
-					// handle error
-					if (error.response && error.response.data) {
-						// The request was made and the server responded with a status code
-						// that falls out of the range of 2xx
-						if (error.response.data.Error) {
-							this.error = error.response.data.Error;
-						} else {
-							this.error = error.response.data;
-						}
-					} else if (error.request) {
-						// The request was made but no response was received
-						// `error.request` is an instance of XMLHttpRequest in the browser and an instance of
-						// http.ClientRequest in node.js
-						this.error = "Error sending data to the server. Please try again.";
-					} else {
-						// Something happened in setting up the request that triggered an Error
-						this.error = error.message;
-					}
-				})
-				.then(() => {
-					// always run
-					this.loading = false;
-				});
-		},
-	},
-};
+watch(followRedirects, (v) => {
+	if (!loaded.value) {
+		return;
+	}
+	if (v) {
+		localStorage.setItem("LinkCheckFollowRedirects", true);
+	} else {
+		localStorage.removeItem("LinkCheckFollowRedirects");
+	}
+	if (check.value) {
+		doCheck();
+	}
+});
+
+autoScan.value = localStorage.getItem("LinkCheckAutoScan");
+followRedirects.value = localStorage.getItem("LinkCheckFollowRedirects");
+
+onMounted(() => {
+	loaded.value = true;
+	if (autoScan.value) {
+		doCheck();
+	}
+});
 </script>
 
 <template>

@@ -1,88 +1,80 @@
-<script>
-import CommonMixins from "../mixins/CommonMixins";
+<script setup>
+import { ref, watch, onMounted, nextTick } from "vue";
 import Tags from "bootstrap5-tags";
 import timezones from "timezones-list";
 import { mailbox } from "../stores/mailbox";
+import { useCommon } from "../composables/useCommon";
 
-export default {
-	mixins: [CommonMixins],
+const { get, put, resolve } = useCommon();
 
-	data() {
-		return {
-			mailbox,
-			theme: localStorage.getItem("theme") ? localStorage.getItem("theme") : "auto",
-			timezones,
-			chaosConfig: false,
-			chaosUpdated: false,
-			defaultReleaseAddressesOptions: mailbox.defaultReleaseAddresses.slice(), // set with default release addresses
-		};
+const theme = ref(localStorage.getItem("theme") ? localStorage.getItem("theme") : "auto");
+const chaosConfig = ref(false);
+const chaosUpdated = ref(false);
+const defaultReleaseAddressesOptions = ref(mailbox.defaultReleaseAddresses.slice());
+
+function setTheme() {
+	if (theme.value === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+		document.documentElement.setAttribute("data-bs-theme", "dark");
+	} else {
+		document.documentElement.setAttribute("data-bs-theme", theme.value);
+	}
+}
+
+watch(theme, (v) => {
+	if (v === "auto") {
+		localStorage.removeItem("theme");
+	} else {
+		localStorage.setItem("theme", v);
+	}
+	setTheme();
+});
+
+watch(
+	chaosConfig,
+	() => {
+		chaosUpdated.value = true;
 	},
+	{ deep: true },
+);
 
-	watch: {
-		theme(v) {
-			if (v === "auto") {
-				localStorage.removeItem("theme");
-			} else {
-				localStorage.setItem("theme", v);
-			}
-			this.setTheme();
-		},
-
-		chaosConfig: {
-			handler() {
-				this.chaosUpdated = true;
-			},
-			deep: true,
-		},
-
-		"mailbox.skipConfirmations"(v) {
-			if (v) {
-				localStorage.setItem("skip-confirmations", "true");
-			} else {
-				localStorage.removeItem("skip-confirmations");
-			}
-		},
+watch(
+	() => mailbox.skipConfirmations,
+	(v) => {
+		if (v) {
+			localStorage.setItem("skip-confirmations", "true");
+		} else {
+			localStorage.removeItem("skip-confirmations");
+		}
 	},
+);
 
-	mounted() {
-		this.setTheme();
+function loadChaos() {
+	get(resolve("/api/v1/chaos"), null, (response) => {
+		chaosConfig.value = response.data;
+		nextTick(() => {
+			chaosUpdated.value = false;
+		});
+	});
+}
 
-		mailbox.skipConfirmations = localStorage.getItem("skip-confirmations");
+function saveChaos() {
+	put(resolve("/api/v1/chaos"), chaosConfig.value, (response) => {
+		chaosConfig.value = response.data;
+		nextTick(() => {
+			chaosUpdated.value = false;
+		});
+	});
+}
 
-		window.setTimeout(() => {
-			Tags.init("select.tz");
-			Tags.init("select.default-release-addresses");
-		}, 500);
-	},
+onMounted(() => {
+	setTheme();
+	mailbox.skipConfirmations = localStorage.getItem("skip-confirmations");
 
-	methods: {
-		setTheme() {
-			if (this.theme === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-				document.documentElement.setAttribute("data-bs-theme", "dark");
-			} else {
-				document.documentElement.setAttribute("data-bs-theme", this.theme);
-			}
-		},
-
-		loadChaos() {
-			this.get(this.resolve("/api/v1/chaos"), null, (response) => {
-				this.chaosConfig = response.data;
-				this.$nextTick(() => {
-					this.chaosUpdated = false;
-				});
-			});
-		},
-
-		saveChaos() {
-			this.put(this.resolve("/api/v1/chaos"), this.chaosConfig, (response) => {
-				this.chaosConfig = response.data;
-				this.$nextTick(() => {
-					this.chaosUpdated = false;
-				});
-			});
-		},
-	},
-};
+	window.setTimeout(() => {
+		Tags.init("select.tz");
+		Tags.init("select.default-release-addresses");
+	}, 500);
+});
 </script>
 
 <template>

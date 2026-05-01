@@ -1,68 +1,58 @@
-<script>
-import CommonMixins from "../mixins/CommonMixins";
+<script setup>
+import { ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { pagination } from "../stores/pagination";
 
-export default {
-	mixins: [CommonMixins],
+const emit = defineEmits(["loadMessages"]);
 
-	emits: ["loadMessages"],
+const route = useRoute();
+const router = useRouter();
 
-	data() {
-		return {
-			search: "",
-		};
-	},
+const search = ref("");
 
-	watch: {
-		$route() {
-			this.searchFromURL();
-		},
-	},
+function searchFromURL() {
+	const urlParams = new URLSearchParams(window.location.search);
+	search.value = urlParams.get("q") ? urlParams.get("q") : "";
+}
 
-	mounted() {
-		this.searchFromURL();
-	},
-
-	methods: {
-		searchFromURL() {
-			const urlParams = new URLSearchParams(window.location.search);
-			this.search = urlParams.get("q") ? urlParams.get("q") : "";
-		},
-
-		doSearch(e) {
+function doSearch(e) {
+	pagination.start = 0;
+	if (search.value === "") {
+		router.push("/");
+	} else {
+		const urlParams = new URLSearchParams(window.location.search);
+		const curr = urlParams.get("q");
+		if (curr && curr === search.value) {
 			pagination.start = 0;
-			if (this.search === "") {
-				this.$router.push("/");
-			} else {
-				const urlParams = new URLSearchParams(window.location.search);
-				const curr = urlParams.get("q");
-				if (curr && curr === this.search) {
-					pagination.start = 0;
-					this.$emit("loadMessages");
-				}
-				const p = {
-					q: this.search,
-				};
-				if (pagination.start > 0) {
-					p.start = pagination.start.toString();
-				}
-				if (pagination.limit !== pagination.defaultLimit) {
-					p.limit = pagination.limit.toString();
-				}
+			emit("loadMessages");
+		}
+		const p = {
+			q: search.value,
+		};
+		if (pagination.start > 0) {
+			p.start = pagination.start.toString();
+		}
+		if (pagination.limit !== pagination.defaultLimit) {
+			p.limit = pagination.limit.toString();
+		}
 
-				const params = new URLSearchParams(p);
-				this.$router.push("/search?" + params.toString());
-			}
+		const params = new URLSearchParams(p);
+		router.push("/search?" + params.toString());
+	}
 
-			e.preventDefault();
-		},
+	e.preventDefault();
+}
 
-		resetSearch() {
-			this.search = "";
-			this.$router.push("/");
-		},
-	},
-};
+function resetSearch() {
+	search.value = "";
+	router.push("/");
+}
+
+watch(route, () => {
+	searchFromURL();
+});
+
+searchFromURL();
 </script>
 
 <template>

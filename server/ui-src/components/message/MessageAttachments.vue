@@ -1,78 +1,79 @@
-<script>
-import commonMixins from "../../mixins/CommonMixins";
+<script setup>
+import { ref } from "vue";
 import { mailbox } from "../../stores/mailbox";
+import { useCommon } from "../../composables/useCommon";
 import ICAL from "ical.js";
 import dayjs from "dayjs";
 
-export default {
-	mixins: [commonMixins],
-
-	props: {
-		message: {
-			type: Object,
-			required: true,
-		},
-		attachments: {
-			type: Object,
-			required: true,
-		},
+const props = defineProps({
+	message: {
+		type: Object,
+		required: true,
 	},
-
-	data() {
-		return {
-			mailbox,
-			ical: false,
-		};
+	attachments: {
+		type: Object,
+		required: true,
 	},
+});
 
-	methods: {
-		openAttachment(part, e) {
-			const filename = part.FileName;
-			const contentType = part.ContentType;
-			const href = this.resolve("/api/v1/message/" + this.message.ID + "/part/" + part.PartID);
-			if (filename.match(/\.ics$/i) || contentType === "text/calendar") {
-				e.preventDefault();
+const {
+	get,
+	resolve,
+	getFileSize,
+	isImage,
+	attachmentIcon,
+	copyToClipboardSupported,
+	copiedText,
+	copyToClipboard,
+	modal,
+} = useCommon();
 
-				this.get(href, null, (response) => {
-					const comp = new ICAL.Component(ICAL.parse(response.data));
-					const vevent = comp.getFirstSubcomponent("vevent");
-					if (!vevent) {
-						alert("Error parsing ICS file");
-						return;
-					}
-					const event = new ICAL.Event(vevent);
+const ical = ref(false);
 
-					const summary = {};
-					summary.link = href;
-					summary.status = vevent.getFirstPropertyValue("status");
-					summary.url = vevent.getFirstPropertyValue("url");
-					summary.summary = event.summary;
-					summary.description = event.description;
-					summary.location = event.location;
-					summary.start = dayjs(event.startDate).format("ddd, D MMM YYYY, h:mm a");
-					summary.end = dayjs(event.endDate).format("ddd, D MMM YYYY, h:mm a");
-					summary.isRecurring = event.isRecurring();
-					summary.organizer = event.organizer ? event.organizer.replace(/^mailto:/, "") : false;
-					summary.attendees = [];
-					event.attendees.forEach((a) => {
-						if (a.jCal[1].cn) {
-							summary.attendees.push(a.jCal[1].cn);
-						}
-					});
+function openAttachment(part, e) {
+	const filename = part.FileName;
+	const contentType = part.ContentType;
+	const href = resolve("/api/v1/message/" + props.message.ID + "/part/" + part.PartID);
+	if (filename.match(/\.ics$/i) || contentType === "text/calendar") {
+		e.preventDefault();
 
-					comp.getAllSubcomponents("vtimezone").forEach((vtimezone) => {
-						summary.timezone = vtimezone.getFirstPropertyValue("tzid");
-					});
-
-					this.ical = summary;
-
-					// display modal
-					this.modal("ICSView").show();
-				});
+		get(href, null, (response) => {
+			const comp = new ICAL.Component(ICAL.parse(response.data));
+			const vevent = comp.getFirstSubcomponent("vevent");
+			if (!vevent) {
+				alert("Error parsing ICS file");
+				return;
 			}
-		},
-	},
-};
+			const event = new ICAL.Event(vevent);
+
+			const summary = {};
+			summary.link = href;
+			summary.status = vevent.getFirstPropertyValue("status");
+			summary.url = vevent.getFirstPropertyValue("url");
+			summary.summary = event.summary;
+			summary.description = event.description;
+			summary.location = event.location;
+			summary.start = dayjs(event.startDate).format("ddd, D MMM YYYY, h:mm a");
+			summary.end = dayjs(event.endDate).format("ddd, D MMM YYYY, h:mm a");
+			summary.isRecurring = event.isRecurring();
+			summary.organizer = event.organizer ? event.organizer.replace(/^mailto:/, "") : false;
+			summary.attendees = [];
+			event.attendees.forEach((a) => {
+				if (a.jCal[1].cn) {
+					summary.attendees.push(a.jCal[1].cn);
+				}
+			});
+
+			comp.getAllSubcomponents("vtimezone").forEach((vtimezone) => {
+				summary.timezone = vtimezone.getFirstPropertyValue("tzid");
+			});
+
+			ical.value = summary;
+
+			modal("ICSView").show();
+		});
+	}
+}
 </script>
 
 <template>

@@ -1,94 +1,75 @@
-<script>
+<script setup>
 import AjaxLoader from "./AjaxLoader.vue";
-import CommonMixins from "../mixins/CommonMixins";
 import { mailbox } from "../stores/mailbox";
+import { useCommon } from "../composables/useCommon";
 
-export default {
-	components: {
-		AjaxLoader,
-	},
+const emit = defineEmits(["loadMessages"]);
 
-	mixins: [CommonMixins],
+const { loading, del, put, resolve } = useCommon();
 
-	emits: ["loadMessages"],
+function loadMessages() {
+	emit("loadMessages");
+}
 
-	data() {
-		return {
-			mailbox,
-		};
-	},
+function markSelectedRead() {
+	if (!mailbox.selected.length) {
+		return false;
+	}
+	put(resolve(`/api/v1/messages`), { Read: true, IDs: mailbox.selected }, () => {
+		window.scrollInPlace = true;
+		loadMessages();
+	});
+}
 
-	methods: {
-		loadMessages() {
-			this.$emit("loadMessages");
-		},
+function isSelected(id) {
+	return mailbox.selected.indexOf(id) !== -1;
+}
 
-		// mark selected messages as read
-		markSelectedRead() {
-			if (!mailbox.selected.length) {
-				return false;
-			}
-			this.put(this.resolve(`/api/v1/messages`), { Read: true, IDs: mailbox.selected }, () => {
-				window.scrollInPlace = true;
-				this.loadMessages();
-			});
-		},
+function markSelectedUnread() {
+	if (!mailbox.selected.length) {
+		return false;
+	}
+	put(resolve(`/api/v1/messages`), { Read: false, IDs: mailbox.selected }, () => {
+		window.scrollInPlace = true;
+		loadMessages();
+	});
+}
 
-		isSelected(id) {
-			return mailbox.selected.indexOf(id) !== -1;
-		},
+function deleteMessages() {
+	const ids = JSON.parse(JSON.stringify(mailbox.selected));
+	if (!ids.length) {
+		return false;
+	}
 
-		// mark selected messages as unread
-		markSelectedUnread() {
-			if (!mailbox.selected.length) {
-				return false;
-			}
-			this.put(this.resolve(`/api/v1/messages`), { Read: false, IDs: mailbox.selected }, () => {
-				window.scrollInPlace = true;
-				this.loadMessages();
-			});
-		},
+	del(resolve(`/api/v1/messages`), { IDs: ids }, () => {
+		window.scrollInPlace = true;
+		loadMessages();
+	});
+}
 
-		// universal handler to delete current or selected messages
-		deleteMessages() {
-			const ids = JSON.parse(JSON.stringify(mailbox.selected));
-			if (!ids.length) {
-				return false;
-			}
+function selectedHasUnread() {
+	if (!mailbox.selected.length) {
+		return false;
+	}
+	for (const i in mailbox.messages) {
+		if (isSelected(mailbox.messages[i].ID) && !mailbox.messages[i].Read) {
+			return true;
+		}
+	}
+	return false;
+}
 
-			this.delete(this.resolve(`/api/v1/messages`), { IDs: ids }, () => {
-				window.scrollInPlace = true;
-				this.loadMessages();
-			});
-		},
-
-		// test if any selected emails are unread
-		selectedHasUnread() {
-			if (!mailbox.selected.length) {
-				return false;
-			}
-			for (const i in mailbox.messages) {
-				if (this.isSelected(mailbox.messages[i].ID) && !mailbox.messages[i].Read) {
-					return true;
-				}
-			}
-			return false;
-		},
-
-		// test of any selected emails are read
-		selectedHasRead() {
-			if (!mailbox.selected.length) {
-				return false;
-			}
-			for (const i in mailbox.messages) {
-				if (this.isSelected(mailbox.messages[i].ID) && mailbox.messages[i].Read) {
-					return true;
-				}
-			}
-			return false;
-		},
-	},
-};
+function selectedHasRead() {
+	if (!mailbox.selected.length) {
+		return false;
+	}
+	for (const i in mailbox.messages) {
+		if (isSelected(mailbox.messages[i].ID) && mailbox.messages[i].Read) {
+			return true;
+		}
+	}
+	return false;
+}
 </script>
 
 <template>

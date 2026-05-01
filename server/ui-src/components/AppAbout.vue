@@ -1,68 +1,48 @@
-<script>
+<script setup>
 import AjaxLoader from "./AjaxLoader.vue";
 import Settings from "./AppSettings.vue";
-import CommonMixins from "../mixins/CommonMixins";
+import { computed } from "vue";
 import { mailbox } from "../stores/mailbox";
+import { useCommon } from "../composables/useCommon";
 
-export default {
-	components: {
-		AjaxLoader,
-		Settings,
+const { loading, get, resolve, getFileSize, secondsToRelative, modal } = useCommon();
+
+defineProps({
+	modals: {
+		type: Boolean,
+		default: false,
 	},
-
-	mixins: [CommonMixins],
-
-	props: {
-		modals: {
-			type: Boolean,
-			default: false,
-		},
-		navbar: {
-			type: Boolean,
-			default: false,
-		},
+	navbar: {
+		type: Boolean,
+		default: false,
 	},
+});
 
-	data() {
-		return {
-			mailbox,
-		};
-	},
+const isEdgeBuild = computed(() => {
+	const re = /^(v\d+.\d+.\d+-)/i;
+	return re.test(mailbox.appInfo.Version);
+});
 
-	computed: {
-		isEdgeBuild() {
-			const re = /^(v\d+.\d+.\d+-)/i;
-			return re.test(mailbox.appInfo.Version);
-		},
-	},
+function loadInfo() {
+	get(resolve("/api/v1/info"), false, (response) => {
+		mailbox.appInfo = response.data;
+		modal("AppInfoModal").show();
+	});
+}
 
-	methods: {
-		loadInfo() {
-			this.get(this.resolve("/api/v1/info"), false, (response) => {
-				mailbox.appInfo = response.data;
-				this.modal("AppInfoModal").show();
-			});
-		},
-
-		requestNotifications() {
-			// check if the browser supports notifications
-			if (!("Notification" in window)) {
-				alert("This browser does not support desktop notifications");
+function requestNotifications() {
+	if (!("Notification" in window)) {
+		alert("This browser does not support desktop notifications");
+	} else if (Notification.permission !== "denied") {
+		Notification.requestPermission().then((permission) => {
+			if (permission === "granted") {
+				mailbox.notificationsEnabled = true;
 			}
 
-			// we need to ask the user for permission
-			else if (Notification.permission !== "denied") {
-				Notification.requestPermission().then((permission) => {
-					if (permission === "granted") {
-						mailbox.notificationsEnabled = true;
-					}
-
-					this.modal("EnableNotificationsModal").hide();
-				});
-			}
-		},
-	},
-};
+			modal("EnableNotificationsModal").hide();
+		});
+	}
+}
 </script>
 
 <template>
