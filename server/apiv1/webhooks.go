@@ -18,6 +18,20 @@ type WebhookSearchResult struct {
 
 // SearchWebhookRequests returns webhook requests matching a search query.
 func SearchWebhookRequests(w http.ResponseWriter, r *http.Request) {
+	// swagger:route GET /api/v1/webhooks/search webhooks SearchWebhooksParams
+	//
+	// # Search webhook requests
+	//
+	// Returns captured webhook requests matching a search query.
+	//
+	//	Produces:
+	//	  - application/json
+	//
+	//	Schemes: http, https
+	//
+	//	Responses:
+	//	  200: WebhookSearchResultResponse
+	//    400: ErrorResponse
 	query := strings.TrimSpace(r.URL.Query().Get("query"))
 	if query == "" {
 		httpError(w, "Error: no search query")
@@ -58,6 +72,20 @@ type WebhookRequestsSummary struct {
 
 // GetWebhooks returns a paginated list of captured webhook requests.
 func GetWebhooks(w http.ResponseWriter, r *http.Request) {
+	// swagger:route GET /api/v1/webhooks webhooks GetWebhooksParams
+	//
+	// # List webhook requests
+	//
+	// Returns captured webhook requests ordered from newest to oldest.
+	//
+	//	Produces:
+	//	  - application/json
+	//
+	//	Schemes: http, https
+	//
+	//	Responses:
+	//	  200: WebhookRequestsSummaryResponse
+	//    400: ErrorResponse
 	start, _, limit := getStartLimit(r)
 
 	messages, err := storage.ListWebhooks(start, limit)
@@ -91,6 +119,20 @@ func GetWebhooks(w http.ResponseWriter, r *http.Request) {
 
 // GetWebhook returns a single captured webhook request and marks it as read.
 func GetWebhook(w http.ResponseWriter, r *http.Request) {
+	// swagger:route GET /api/v1/webhook/{ID} webhooks GetWebhookParams
+	//
+	// # Get webhook request
+	//
+	// Returns a single captured webhook request and marks it as read.
+	//
+	//	Produces:
+	//	  - application/json
+	//
+	//	Schemes: http, https
+	//
+	//	Responses:
+	//	  200: WebhookRequestResponse
+	//    404: NotFoundResponse
 	vars := mux.Vars(r)
 	id := vars["id"]
 
@@ -112,6 +154,17 @@ func GetWebhook(w http.ResponseWriter, r *http.Request) {
 
 // DeleteWebhook deletes a single captured webhook request.
 func DeleteWebhook(w http.ResponseWriter, r *http.Request) {
+	// swagger:route DELETE /api/v1/webhook/{ID} webhooks DeleteWebhookParams
+	//
+	// # Delete webhook request
+	//
+	// Deletes a single captured webhook request.
+	//
+	//	Schemes: http, https
+	//
+	//	Responses:
+	//	  200: OKResponse
+	//    400: ErrorResponse
 	vars := mux.Vars(r)
 	id := vars["id"]
 
@@ -125,6 +178,17 @@ func DeleteWebhook(w http.ResponseWriter, r *http.Request) {
 
 // DeleteAllWebhooks deletes all captured webhook requests.
 func DeleteAllWebhooks(w http.ResponseWriter, r *http.Request) {
+	// swagger:route DELETE /api/v1/webhooks webhooks DeleteAllWebhooksParams
+	//
+	// # Delete all webhook requests
+	//
+	// Deletes all captured webhook requests.
+	//
+	//	Schemes: http, https
+	//
+	//	Responses:
+	//	  200: OKResponse
+	//    400: ErrorResponse
 	if err := storage.DeleteAllWebhooks(); err != nil {
 		httpError(w, err.Error())
 		return

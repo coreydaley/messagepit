@@ -15,6 +15,7 @@ import (
 	"github.com/coreydaley/messagepit/config"
 	"github.com/coreydaley/messagepit/internal/auth"
 	"github.com/coreydaley/messagepit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/sendgrid"
 	"github.com/coreydaley/messagepit/internal/storage"
 	"github.com/coreydaley/messagepit/server/apiv1"
 	"github.com/jhillyerd/enmime/v2"
@@ -999,6 +1000,31 @@ func TestAPIv1WebhooksSearch(t *testing.T) {
 	}
 }
 
+func TestSendGridEndpoint(t *testing.T) {
+	setup()
+	defer storage.Close()
+
+	r := apiRoutes()
+	r.HandleFunc("/v3/mail/send", sendgrid.CreateMessage).Methods("POST")
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+
+	payload := `{"from":{"email":"sender@example.com"},"subject":"Integration Test","personalizations":[{"to":[{"email":"to@example.com"}]}],"content":[{"type":"text/plain","value":"hello"}]}`
+
+	_, err := clientPostExpect(ts.URL+"/v3/mail/send", payload, http.StatusAccepted)
+	if err != nil {
+		t.Fatalf("POST /v3/mail/send: %v", err)
+	}
+
+	msgs, err := storage.List(0, 0, 10)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 message stored after SendGrid POST, got %d", len(msgs))
+	}
+}
+
 func setup() {
 	logger.NoLogging = true
 	config.MaxMessages = 0
@@ -1201,6 +1227,31 @@ func clientPost(url, body string) ([]byte, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("%s returned status %d", url, resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+
+	return data, err
+}
+
+func clientPostExpect(url, body string, wantStatus int) ([]byte, error) {
+	client := new(http.Client)
+
+	b := strings.NewReader(body)
+	req, err := http.NewRequest("POST", url, b)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != wantStatus {
+		return nil, fmt.Errorf("%s returned status %d, want %d", url, resp.StatusCode, wantStatus)
 	}
 
 	data, err := io.ReadAll(resp.Body)

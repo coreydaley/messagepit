@@ -55,8 +55,8 @@ type mailSendRequest struct {
 // webhook if an X-Notification-Id is found in the message custom_args.
 func CreateMessage(w http.ResponseWriter, r *http.Request) {
 	if config.SendGridAPIKey != "" {
-		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if token != config.SendGridAPIKey {
+		authHeader := r.Header.Get("Authorization")
+		if !strings.HasPrefix(authHeader, "Bearer ") || strings.TrimPrefix(authHeader, "Bearer ") != config.SendGridAPIKey {
 			logger.Log().Warnf("[sendgrid] invalid API key from %s", r.RemoteAddr)
 			w.WriteHeader(http.StatusUnauthorized)
 			return

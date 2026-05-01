@@ -451,6 +451,100 @@ type deleteSMSMessageParams struct {
 // swagger:parameters DeleteAllSMSParams
 type deleteAllSMSParams struct{}
 
+// swagger:parameters SearchSMSParams
+type searchSMSParams struct {
+	// Search query
+	//
+	// in: query
+	// required: true
+	// type: string
+	Query string `json:"query"`
+
+	// Pagination offset
+	//
+	// in: query
+	// required: false
+	// default: 0
+	// type: integer
+	Start int `json:"start"`
+
+	// Limit number of results
+	//
+	// in: query
+	// required: false
+	// default: 50
+	// type: integer
+	Limit int `json:"limit"`
+}
+
+// swagger:parameters GetWebhooksParams
+type getWebhooksParams struct {
+	// Pagination offset
+	//
+	// in: query
+	// name: start
+	// required: false
+	// default: 0
+	// type: integer
+	Start int `json:"start"`
+
+	// Limit number of results
+	//
+	// in: query
+	// name: limit
+	// required: false
+	// default: 50
+	// type: integer
+	Limit int `json:"limit"`
+}
+
+// swagger:parameters GetWebhookParams
+type getWebhookParams struct {
+	// Webhook request database ID
+	//
+	// in: path
+	// required: true
+	ID string
+}
+
+// swagger:parameters DeleteWebhookParams
+type deleteWebhookParams struct {
+	// Webhook request database ID
+	//
+	// in: path
+	// required: true
+	ID string
+}
+
+// swagger:parameters DeleteAllWebhooksParams
+type deleteAllWebhooksParams struct{}
+
+// swagger:parameters SearchWebhooksParams
+type searchWebhooksParams struct {
+	// Search query
+	//
+	// in: query
+	// required: true
+	// type: string
+	Query string `json:"query"`
+
+	// Pagination offset
+	//
+	// in: query
+	// required: false
+	// default: 0
+	// type: integer
+	Start int `json:"start"`
+
+	// Limit number of results
+	//
+	// in: query
+	// required: false
+	// default: 50
+	// type: integer
+	Limit int `json:"limit"`
+}
+
 // swagger:parameters ThumbnailParams
 type thumbnailParams struct {
 	// Message database ID or "latest"

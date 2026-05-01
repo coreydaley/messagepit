@@ -26,6 +26,20 @@ type SMSSearchResult struct {
 
 // SearchSMSMessages returns SMS messages matching a search query.
 func SearchSMSMessages(w http.ResponseWriter, r *http.Request) {
+	// swagger:route GET /api/v1/sms/search sms SearchSMSParams
+	//
+	// # Search SMS messages
+	//
+	// Returns SMS messages matching a search query.
+	//
+	//	Produces:
+	//	  - application/json
+	//
+	//	Schemes: http, https
+	//
+	//	Responses:
+	//	  200: SMSSearchResultResponse
+	//    400: ErrorResponse
 	query := strings.TrimSpace(r.URL.Query().Get("query"))
 	if query == "" {
 		httpError(w, "Error: no search query")
@@ -101,7 +115,7 @@ func GetSMSMessages(w http.ResponseWriter, r *http.Request) {
 
 // GetSMSMessage returns a single SMS message as JSON.
 func GetSMSMessage(w http.ResponseWriter, r *http.Request) {
-	// swagger:route GET /api/v1/sms/message/{id} sms GetSMSMessageParams
+	// swagger:route GET /api/v1/sms/message/{ID} sms GetSMSMessageParams
 	//
 	// # Get SMS message
 	//
@@ -132,7 +146,7 @@ func GetSMSMessage(w http.ResponseWriter, r *http.Request) {
 
 // MarkSMSRead marks an SMS message as read.
 func MarkSMSRead(w http.ResponseWriter, r *http.Request) {
-	// swagger:route PUT /api/v1/sms/message/{id}/read sms MarkSMSReadParams
+	// swagger:route PUT /api/v1/sms/message/{ID}/read sms MarkSMSReadParams
 	//
 	// # Mark SMS message read
 	//
@@ -160,7 +174,7 @@ func MarkSMSRead(w http.ResponseWriter, r *http.Request) {
 
 // DeleteSMSMessage deletes a single SMS message.
 func DeleteSMSMessage(w http.ResponseWriter, r *http.Request) {
-	// swagger:route DELETE /api/v1/sms/message/{id} sms DeleteSMSMessageParams
+	// swagger:route DELETE /api/v1/sms/message/{ID} sms DeleteSMSMessageParams
 	//
 	// # Delete SMS message
 	//

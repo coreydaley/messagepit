@@ -20,7 +20,7 @@ jobs:
       if: startsWith(matrix.os, 'ubuntu') == true
       run: gofmt -s -w . && git diff --exit-code
     - name: Run Go tests
-      run: go test -p 1 ./internal/storage ./internal/twilio ./server ./internal/smtpd ./internal/pop3 ./internal/tools ./internal/html2text ./internal/htmlcheck ./internal/linkcheck -v
+      run: go test -p 1 ./internal/storage ./internal/twilio ./internal/sendgrid ./internal/webhookd ./server ./internal/smtpd ./internal/pop3 ./internal/tools ./internal/html2text ./internal/htmlcheck ./internal/linkcheck -v
     - name: Run Go benchmarking
       run: go test -p 1 ./internal/storage ./internal/html2text -bench=.
 

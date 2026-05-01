@@ -666,7 +666,7 @@
     },
     "/api/v1/search": {
       "get": {
-        "description": "Returns messages matching [a search](https://mailpit.axllent.org/docs/usage/search-filters/), sorted by received date (descending).",
+        "description": "Returns messages matching a search query, sorted by received date (descending).",
         "produces": [
           "application/json"
         ],
@@ -722,7 +722,7 @@
         }
       },
       "delete": {
-        "description": "Delete all messages matching [a search](https://mailpit.axllent.org/docs/usage/search-filters/).",
+        "description": "Delete all messages matching a search query.",
         "produces": [
           "application/json"
         ],
@@ -968,7 +968,7 @@
         }
       }
     },
-    "/api/v1/sms/message/{id}": {
+    "/api/v1/sms/message/{ID}": {
       "get": {
         "description": "Returns a single SMS message.",
         "produces": [
@@ -1034,7 +1034,7 @@
         }
       }
     },
-    "/api/v1/sms/message/{id}/read": {
+    "/api/v1/sms/message/{ID}/read": {
       "put": {
         "description": "Marks an SMS message as read.",
         "produces": [
@@ -1129,6 +1129,59 @@
         "responses": {
           "200": {
             "$ref": "#/responses/OKResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/sms/search": {
+      "get": {
+        "description": "Returns SMS messages matching a search query.",
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "http",
+          "https"
+        ],
+        "tags": [
+          "sms"
+        ],
+        "summary": "Search SMS messages",
+        "operationId": "SearchSMSParams",
+        "parameters": [
+          {
+            "type": "string",
+            "x-go-name": "Query",
+            "description": "Search query",
+            "name": "query",
+            "in": "query",
+            "required": true
+          },
+          {
+            "type": "integer",
+            "format": "int64",
+            "default": 0,
+            "x-go-name": "Start",
+            "description": "Pagination offset",
+            "name": "start",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "format": "int64",
+            "default": 50,
+            "x-go-name": "Limit",
+            "description": "Limit number of results",
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/SMSSearchResultResponse"
+          },
+          "400": {
+            "$ref": "#/responses/ErrorResponse"
           }
         }
       }
@@ -1297,6 +1350,187 @@
         "responses": {
           "200": {
             "$ref": "#/responses/OKResponse"
+          },
+          "400": {
+            "$ref": "#/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/webhook/{ID}": {
+      "get": {
+        "description": "Returns a single captured webhook request and marks it as read.",
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "http",
+          "https"
+        ],
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Get webhook request",
+        "operationId": "GetWebhookParams",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Webhook request database ID",
+            "name": "ID",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/WebhookRequestResponse"
+          },
+          "404": {
+            "$ref": "#/responses/NotFoundResponse"
+          }
+        }
+      },
+      "delete": {
+        "description": "Deletes a single captured webhook request.",
+        "schemes": [
+          "http",
+          "https"
+        ],
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Delete webhook request",
+        "operationId": "DeleteWebhookParams",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Webhook request database ID",
+            "name": "ID",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/OKResponse"
+          },
+          "400": {
+            "$ref": "#/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks": {
+      "get": {
+        "description": "Returns captured webhook requests ordered from newest to oldest.",
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "http",
+          "https"
+        ],
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "List webhook requests",
+        "operationId": "GetWebhooksParams",
+        "parameters": [
+          {
+            "type": "integer",
+            "format": "int64",
+            "default": 0,
+            "x-go-name": "Start",
+            "description": "Pagination offset",
+            "name": "start",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "format": "int64",
+            "default": 50,
+            "x-go-name": "Limit",
+            "description": "Limit number of results",
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/WebhookRequestsSummaryResponse"
+          },
+          "400": {
+            "$ref": "#/responses/ErrorResponse"
+          }
+        }
+      },
+      "delete": {
+        "description": "Deletes all captured webhook requests.",
+        "schemes": [
+          "http",
+          "https"
+        ],
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Delete all webhook requests",
+        "operationId": "DeleteAllWebhooksParams",
+        "responses": {
+          "200": {
+            "$ref": "#/responses/OKResponse"
+          },
+          "400": {
+            "$ref": "#/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/search": {
+      "get": {
+        "description": "Returns captured webhook requests matching a search query.",
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "http",
+          "https"
+        ],
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Search webhook requests",
+        "operationId": "SearchWebhooksParams",
+        "parameters": [
+          {
+            "type": "string",
+            "x-go-name": "Query",
+            "description": "Search query",
+            "name": "query",
+            "in": "query",
+            "required": true
+          },
+          {
+            "type": "integer",
+            "format": "int64",
+            "default": 0,
+            "x-go-name": "Start",
+            "description": "Pagination offset",
+            "name": "start",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "format": "int64",
+            "default": 50,
+            "x-go-name": "Limit",
+            "description": "Limit number of results",
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/WebhookSearchResultResponse"
           },
           "400": {
             "$ref": "#/responses/ErrorResponse"
@@ -2205,6 +2439,30 @@
       },
       "x-go-package": "github.com/coreydaley/messagepit/server/apiv1"
     },
+    "SMSSearchResult": {
+      "type": "object",
+      "title": "SMSSearchResult is the response shape for the SMS search endpoint.",
+      "properties": {
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SMSMessageSummary"
+          },
+          "x-go-name": "Messages"
+        },
+        "start": {
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "Start"
+        },
+        "total": {
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "Total"
+        }
+      },
+      "x-go-package": "github.com/coreydaley/messagepit/server/apiv1"
+    },
     "SpamAssassinResponse": {
       "description": "Result is a SpamAssassin result",
       "type": "object",
@@ -2232,6 +2490,163 @@
       },
       "x-go-name": "Result",
       "x-go-package": "github.com/coreydaley/messagepit/internal/spamassassin"
+    },
+    "WebhookRequest": {
+      "description": "WebhookRequest represents a captured inbound HTTP webhook request",
+      "type": "object",
+      "properties": {
+        "Body": {
+          "description": "Request body as string",
+          "type": "string"
+        },
+        "BodySize": {
+          "description": "Body size in bytes",
+          "type": "integer",
+          "format": "int64"
+        },
+        "ContentType": {
+          "description": "Content-Type (without parameters)",
+          "type": "string"
+        },
+        "Created": {
+          "description": "Received date \u0026 time",
+          "type": "string",
+          "format": "date-time"
+        },
+        "Headers": {
+          "description": "Request headers",
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "ID": {
+          "description": "Database ID",
+          "type": "string"
+        },
+        "Method": {
+          "description": "HTTP method",
+          "type": "string"
+        },
+        "Path": {
+          "description": "Request path",
+          "type": "string"
+        },
+        "Query": {
+          "description": "Raw query string",
+          "type": "string"
+        },
+        "Read": {
+          "description": "Read status",
+          "type": "boolean"
+        },
+        "SourceIP": {
+          "description": "Source IP address",
+          "type": "string"
+        }
+      },
+      "x-go-package": "github.com/coreydaley/messagepit/internal/storage"
+    },
+    "WebhookRequestSummary": {
+      "description": "WebhookRequestSummary is used for list views and websocket broadcasts",
+      "type": "object",
+      "properties": {
+        "BodySize": {
+          "description": "Body size in bytes",
+          "type": "integer",
+          "format": "int64"
+        },
+        "ContentType": {
+          "description": "Content-Type (without parameters)",
+          "type": "string"
+        },
+        "Created": {
+          "description": "Received date \u0026 time",
+          "type": "string",
+          "format": "date-time"
+        },
+        "ID": {
+          "description": "Database ID",
+          "type": "string"
+        },
+        "Method": {
+          "description": "HTTP method",
+          "type": "string"
+        },
+        "Path": {
+          "description": "Request path",
+          "type": "string"
+        },
+        "Read": {
+          "description": "Read status",
+          "type": "boolean"
+        },
+        "Snippet": {
+          "description": "Body snippet (up to 250 chars)",
+          "type": "string"
+        },
+        "SourceIP": {
+          "description": "Source IP address",
+          "type": "string"
+        }
+      },
+      "x-go-package": "github.com/coreydaley/messagepit/internal/storage"
+    },
+    "WebhookRequestsSummary": {
+      "type": "object",
+      "title": "WebhookRequestsSummary is the response shape for the webhook list endpoint.",
+      "properties": {
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/WebhookRequestSummary"
+          },
+          "x-go-name": "Messages"
+        },
+        "start": {
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "Start"
+        },
+        "total": {
+          "type": "integer",
+          "format": "uint64",
+          "x-go-name": "Total"
+        },
+        "unread": {
+          "type": "integer",
+          "format": "uint64",
+          "x-go-name": "Unread"
+        }
+      },
+      "x-go-package": "github.com/coreydaley/messagepit/server/apiv1"
+    },
+    "WebhookSearchResult": {
+      "type": "object",
+      "title": "WebhookSearchResult is the response shape for the webhook search endpoint.",
+      "properties": {
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/WebhookRequestSummary"
+          },
+          "x-go-name": "Messages"
+        },
+        "start": {
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "Start"
+        },
+        "total": {
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "Total"
+        }
+      },
+      "x-go-package": "github.com/coreydaley/messagepit/server/apiv1"
     }
   },
   "responses": {
@@ -2317,6 +2732,12 @@
         "$ref": "#/definitions/SMSMessagesSummary"
       }
     },
+    "SMSSearchResultResponse": {
+      "description": "Search result for SMS messages",
+      "schema": {
+        "$ref": "#/definitions/SMSSearchResult"
+      }
+    },
     "SendMessageResponse": {
       "description": "Confirmation message for HTTP send API",
       "schema": {
@@ -2396,6 +2817,24 @@
             "type": "boolean"
           }
         }
+      }
+    },
+    "WebhookRequestResponse": {
+      "description": "Single webhook request\n\nSecurity note: storage.WebhookRequest.Headers captures all inbound HTTP\nheaders verbatim, which may include Authorization, Cookie, or API signing\ntokens. Consumers of this endpoint should treat header values as sensitive.",
+      "schema": {
+        "$ref": "#/definitions/WebhookRequest"
+      }
+    },
+    "WebhookRequestsSummaryResponse": {
+      "description": "Summary of webhook requests",
+      "schema": {
+        "$ref": "#/definitions/WebhookRequestsSummary"
+      }
+    },
+    "WebhookSearchResultResponse": {
+      "description": "Search result for webhook requests",
+      "schema": {
+        "$ref": "#/definitions/WebhookSearchResult"
       }
     }
   }

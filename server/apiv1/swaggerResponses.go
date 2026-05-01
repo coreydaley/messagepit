@@ -145,6 +145,43 @@ type smSMessageResponse struct {
 	Body storage.SMSMessage
 }
 
+// Summary of webhook requests
+// swagger:response WebhookRequestsSummaryResponse
+type webhookRequestsSummaryResponse struct {
+	// The webhook requests summary
+	// in: body
+	Body WebhookRequestsSummary
+}
+
+// Single webhook request
+//
+// Security note: storage.WebhookRequest.Headers captures all inbound HTTP
+// headers verbatim, which may include Authorization, Cookie, or API signing
+// tokens. Consumers of this endpoint should treat header values as sensitive.
+//
+// swagger:response WebhookRequestResponse
+type webhookRequestResponse struct {
+	// A captured webhook request
+	// in: body
+	Body storage.WebhookRequest
+}
+
+// Search result for webhook requests
+// swagger:response WebhookSearchResultResponse
+type webhookSearchResultResponse struct {
+	// Webhook search results
+	// in: body
+	Body WebhookSearchResult
+}
+
+// Search result for SMS messages
+// swagger:response SMSSearchResultResponse
+type smSSearchResultResponse struct {
+	// SMS search results
+	// in: body
+	Body SMSSearchResult
+}
+
 // Confirmation message for HTTP send API
 // swagger:response SendMessageResponse
 type sendMessageResponse struct {
