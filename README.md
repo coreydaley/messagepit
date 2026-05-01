@@ -8,6 +8,7 @@ MessagePit is a fork of [Mailpit](https://github.com/axllent/mailpit) extended w
 
 - **Email**: SMTP server, SendGrid v3 API stub, web UI, REST API, WebSocket live updates, search, tagging, POP3 server
 - **SMS**: Twilio-compatible HTTP ingest, SMS inbox with read/unread tracking, live WebSocket updates
+- **Webhook capture**: Dedicated HTTP server that captures any incoming request on any path/method and displays it in the UI — useful for inspecting outbound webhook calls from your app in development
 - **Delivery callbacks**: Signed SMS status callbacks and SendGrid-style email event webhooks for end-to-end delivery tracking
 - **Shared**: Multi-arch Docker image, optional HTTP basic auth, Prometheus metrics
 
@@ -19,12 +20,13 @@ MessagePit is a fork of [Mailpit](https://github.com/axllent/mailpit) extended w
 | 1110 | POP3 | POP3 server (optional) |
 | 1775 | HTTP | SMS ingest — Twilio-compatible (mirrors SMPP port 2775) |
 | 8025 | HTTP | Web UI, management API, and SendGrid v3 `/v3/mail/send` stub |
+| 8026 | HTTP | Webhook capture — accepts any request on any path/method |
 
 ## Quick Start
 
 ```bash
 # Docker
-docker run -p 1025:1025 -p 1775:1775 -p 8025:8025 ghcr.io/coreydaley/messagepit
+docker run -p 1025:1025 -p 1775:1775 -p 8025:8025 -p 8026:8026 ghcr.io/coreydaley/messagepit
 
 # From source
 make run
@@ -55,6 +57,30 @@ When `MP_SMS_WEBHOOK_URL` is set (or a per-request `StatusCallback` form field i
 The callback body is `application/x-www-form-urlencoded` with `MessageSid`, `MessageStatus`, `To`, and `From`. When `MP_SMS_AUTH_TOKEN` is set the request includes an `X-Twilio-Signature` HMAC-SHA1 header so your webhook handler can validate it with the standard Twilio SDK.
 
 **Priority**: the `StatusCallback` field in the send request takes precedence over the global `MP_SMS_WEBHOOK_URL`.
+
+## Webhook Capture
+
+MessagePit runs a second HTTP server (port 8026 by default) that accepts any incoming HTTP request on any path and method, stores it, and displays it in the **Webhooks** tab of the UI. This is useful for developing and testing outbound webhook delivery from your application without needing a public endpoint.
+
+Point your webhook URL at the capture server:
+
+```
+http://localhost:8026/any/path/you/like
+```
+
+Any HTTP method works: `POST`, `GET`, `PUT`, `PATCH`, `DELETE`. The full request — method, path, headers, body, source IP — is captured and displayed in real time via WebSocket.
+
+The capture server is enabled by default. Set `--webhook ""` (or `MP_WEBHOOK_BIND_ADDR=""`) to disable it.
+
+### Webhook capture API
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/webhooks` | List captured requests (paginated) |
+| GET | `/api/v1/webhooks/search` | Search captured requests |
+| GET | `/api/v1/webhook/{id}` | Get a single captured request |
+| DELETE | `/api/v1/webhook/{id}` | Delete a single captured request |
+| DELETE | `/api/v1/webhooks` | Delete all captured requests |
 
 ## Email Integration (SendGrid v3)
 
@@ -136,6 +162,7 @@ All flags can also be set via environment variables (e.g. `--smtp` → `MP_SMTP_
 | `--smtp` | `MP_SMTP_BIND_ADDR` | `0.0.0.0:1025` | SMTP bind address |
 | `--sms` | `MP_SMS_BIND_ADDR` | `0.0.0.0:1775` | SMS ingest bind address |
 | `--listen` | `MP_UI_BIND_ADDR` | `0.0.0.0:8025` | HTTP UI/API bind address |
+| `--webhook` | `MP_WEBHOOK_BIND_ADDR` | `[::]:8026` | HTTP webhook capture bind address (empty to disable) |
 | `--db` | `MP_DATABASE` | *(in-memory)* | SQLite database file path |
 | `--sms-auth-token` | `MP_SMS_AUTH_TOKEN` | | Twilio auth token — validates Basic Auth on inbound SMS; signs outgoing delivery callbacks |
 | `--sms-webhook-url` | `MP_SMS_WEBHOOK_URL` | | URL to POST SMS delivery callbacks to (fallback when no per-request `StatusCallback`) |
@@ -182,6 +209,7 @@ services:
       - "1025:1025"   # SMTP
       - "1775:1775"   # SMS ingest (Twilio-compatible)
       - "8025:8025"   # Web UI + SendGrid v3 stub
+      - "8026:8026"   # Webhook capture
     environment:
       # SMS — must match TWILIO_AUTH_TOKEN in your app
       MP_SMS_AUTH_TOKEN: your-twilio-auth-token
