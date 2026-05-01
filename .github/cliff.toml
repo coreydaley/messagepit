@@ -14,7 +14,7 @@ body = """
 {% endfor %}\n
 """
 footer = ""
-header = "# Changelog\n\nNotable changes to Mailpit will be documented in this file."
+header = "# Changelog\n\nNotable changes to MessagePit will be documented in this file."
 postprocessors = [
   {pattern = "reponse", replace = "response"},
   {pattern = "messsage", replace = "message"},

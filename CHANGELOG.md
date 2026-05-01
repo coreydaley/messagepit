@@ -4,20 +4,50 @@
 
 Notable MessagePit changes are listed here. Changes inherited from Mailpit upstream are documented in the [Mailpit section](#mailpit) below.
 
-### [Unreleased]
+### [MessagePit v1.2.1]
+
+#### Chore
+- Replace all Mailpit branding with MessagePit across UI, metadata, and documentation
+- Update npm dependencies
+- Upgrade docker/metadata-action from v5 to v6
+
+#### Fix
+- Cache go mod download and npm install as separate Docker build layers
+
+### [MessagePit v1.2.0]
 
 #### Feature
-- HTTP webhook capture server (port 8026): accepts any request on any path/method, stores it, and displays it in a dedicated Webhooks tab with real-time WebSocket updates, search, and pagination
-- SendGrid v3 Mail Send stub (`POST /v3/mail/send`): stores emails in the MessagePit mailbox without reaching real SendGrid
-- SendGrid-style email delivery webhooks: fires ECDSA-signed event payloads to `MP_EMAIL_WEBHOOK_URL` for messages with a `notification_id` in `custom_args`
-- Twilio-compatible SMS ingest server (port 1775): captures SMS messages from apps using the Twilio Ruby SDK or any Twilio-compatible client
-- SMS inbox UI: read/unread tracking, search, pagination, and real-time WebSocket updates
-- Twilio-style SMS delivery callbacks: signs and POSTs status updates to `MP_SMS_WEBHOOK_URL` or per-request `StatusCallback`
+- Add SMS and webhook search with pagination and real-time WebSocket updates
+- Add HTTP webhook capture server (port 8026): accepts any request on any path/method, stores it, and displays it in a dedicated Webhooks tab
 
 #### Refactor
-- Migrated all list and search views from Vue Options API mixins to Vue 3 Composition API (`<script setup>`)
-- Extracted shared HTTP and pagination logic into `useCommon` and `useMessages` composables
-- Introduced `AppLayout.vue` shared layout component to eliminate duplicated navbar/sidebar/offcanvas markup across views
+- Migrate list and search views from Vue Options API mixins to Vue 3 Composition API (`<script setup>`)
+- Extract shared HTTP and pagination logic into `useCommon` and `useMessages` composables
+- Introduce `AppLayout.vue` shared layout component to eliminate duplicated navbar/sidebar/offcanvas markup across views
+
+#### Fix
+- Force-track webhook_requests schema migration
+- Exempt schema migrations from global `*.sql` gitignore
+
+### [MessagePit v1.1.0]
+
+#### Feature
+- Add SendGrid v3 Mail Send stub (`POST /v3/mail/send`): stores emails in the MessagePit mailbox without reaching real SendGrid
+- Add SendGrid-style email delivery webhooks: fires ECDSA-signed event payloads to `MP_EMAIL_WEBHOOK_URL` for messages with a `notification_id` in `custom_args`
+
+### [MessagePit v1.0.0]
+
+#### Feature
+- Fork Mailpit as MessagePit with Twilio-compatible SMS support
+- Add SMS ingest server (`--sms` flag, port 1775): captures SMS from apps using the Twilio Ruby SDK or any Twilio-compatible client
+- Add SMS inbox UI: read/unread tracking, search, pagination, and real-time WebSocket updates
+- Add SMS API endpoints with go-swagger annotations
+- Add Twilio-style SMS delivery callbacks: signs and POSTs status updates to `MP_SMS_WEBHOOK_URL` or per-request `StatusCallback`
+- Add `--sms-auth-token` flag and `MP_SMS_AUTH_TOKEN` env var for HMAC-SHA1 signature validation on incoming webhooks
+- Add tests for SMS storage and Twilio handler
+- Rename Prometheus metrics from `mailpit_` to `messagepit_` prefix
+- Rename Go module to `github.com/coreydaley/messagepit`
+- Update Dockerfile: binary name, labels, expose port 1775/tcp
 
 ---
 
