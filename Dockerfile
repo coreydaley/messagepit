@@ -2,13 +2,22 @@ FROM golang:alpine AS builder
 
 ARG VERSION=dev
 
-COPY . /app
-
 WORKDIR /app
 
-RUN apk upgrade && apk add git npm && \
-npm install && npm run package && \
-CGO_ENABLED=0 go build -ldflags "-s -w -X github.com/coreydaley/messagepit/config.Version=${VERSION}" -o /messagepit
+RUN apk add --no-cache git npm
+
+# Cache Go module downloads separately from source — only re-runs when go.mod/go.sum change
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Cache npm installs separately — only re-runs when package files change
+COPY package.json package-lock.json ./
+RUN npm install
+
+# Copy remaining source and build
+COPY . .
+RUN npm run package && \
+    CGO_ENABLED=0 go build -ldflags "-s -w -X github.com/coreydaley/messagepit/config.Version=${VERSION}" -o /messagepit
 
 FROM alpine:latest
 
@@ -21,7 +30,7 @@ COPY --from=builder /messagepit /messagepit
 
 RUN apk upgrade --no-cache && apk add --no-cache tzdata
 
-EXPOSE 1025/tcp 1110/tcp 1775/tcp 8025/tcp
+EXPOSE 1025/tcp 1110/tcp 1775/tcp 8025/tcp 8026/tcp
 
 HEALTHCHECK --interval=15s --start-period=10s --start-interval=1s CMD ["/messagepit", "readyz"]
 
