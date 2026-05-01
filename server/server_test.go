@@ -617,6 +617,388 @@ func TestAPIv1WebhooksDeleteAll(t *testing.T) {
 	}
 }
 
+func TestAPIv1SMSPagination(t *testing.T) {
+	setup()
+	defer storage.Close()
+
+	r := apiRoutes()
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+
+	// seed 10 messages
+	for i := range 10 {
+		if _, err := storage.StoreSMS("+1555000"+fmt.Sprintf("%04d", i), "+15552223333", fmt.Sprintf("Message %d", i), ""); err != nil {
+			t.Fatalf("StoreSMS: %v", err)
+		}
+	}
+
+	// page 1: limit=3
+	data, err := clientGet(ts.URL + "/api/v1/sms/messages?limit=3")
+	if err != nil {
+		t.Fatalf("GET page 1: %v", err)
+	}
+	resp := apiv1.SMSMessagesSummary{}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		t.Fatalf("unmarshal page 1: %v", err)
+	}
+	if resp.Total != 10 {
+		t.Fatalf("expected total 10, got %d", resp.Total)
+	}
+	if len(resp.Messages) != 3 {
+		t.Fatalf("expected 3 messages on page 1, got %d", len(resp.Messages))
+	}
+	if resp.Start != 0 {
+		t.Fatalf("expected start 0, got %d", resp.Start)
+	}
+
+	page1IDs := []string{resp.Messages[0].ID, resp.Messages[1].ID, resp.Messages[2].ID}
+
+	// page 2: start=3, limit=3
+	data, err = clientGet(ts.URL + "/api/v1/sms/messages?start=3&limit=3")
+	if err != nil {
+		t.Fatalf("GET page 2: %v", err)
+	}
+	resp = apiv1.SMSMessagesSummary{}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		t.Fatalf("unmarshal page 2: %v", err)
+	}
+	if len(resp.Messages) != 3 {
+		t.Fatalf("expected 3 messages on page 2, got %d", len(resp.Messages))
+	}
+	if resp.Start != 3 {
+		t.Fatalf("expected start 3, got %d", resp.Start)
+	}
+
+	// no overlap between pages
+	for _, id := range page1IDs {
+		for _, msg := range resp.Messages {
+			if msg.ID == id {
+				t.Fatalf("page 2 contains ID %s from page 1", id)
+			}
+		}
+	}
+
+	// last page: start=9, limit=3 — only 1 message remains
+	data, err = clientGet(ts.URL + "/api/v1/sms/messages?start=9&limit=3")
+	if err != nil {
+		t.Fatalf("GET last page: %v", err)
+	}
+	resp = apiv1.SMSMessagesSummary{}
+	_ = json.Unmarshal(data, &resp)
+	if len(resp.Messages) != 1 {
+		t.Fatalf("expected 1 message on last page, got %d", len(resp.Messages))
+	}
+}
+
+func TestAPIv1WebhooksPagination(t *testing.T) {
+	setup()
+	defer storage.Close()
+
+	r := apiRoutes()
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+
+	// seed 10 webhooks
+	for i := range 10 {
+		path := fmt.Sprintf("/hook/%d", i)
+		if _, err := storage.StoreWebhook("POST", path, "", nil, []byte("body"), "text/plain", "127.0.0.1"); err != nil {
+			t.Fatalf("StoreWebhook: %v", err)
+		}
+	}
+
+	// page 1: limit=4
+	data, err := clientGet(ts.URL + "/api/v1/webhooks?limit=4")
+	if err != nil {
+		t.Fatalf("GET page 1: %v", err)
+	}
+	resp := apiv1.WebhookRequestsSummary{}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		t.Fatalf("unmarshal page 1: %v", err)
+	}
+	if resp.Total != 10 {
+		t.Fatalf("expected total 10, got %d", resp.Total)
+	}
+	if len(resp.Messages) != 4 {
+		t.Fatalf("expected 4 messages on page 1, got %d", len(resp.Messages))
+	}
+	if resp.Start != 0 {
+		t.Fatalf("expected start 0, got %d", resp.Start)
+	}
+
+	page1IDs := make(map[string]bool)
+	for _, m := range resp.Messages {
+		page1IDs[m.ID] = true
+	}
+
+	// page 2: start=4, limit=4
+	data, err = clientGet(ts.URL + "/api/v1/webhooks?start=4&limit=4")
+	if err != nil {
+		t.Fatalf("GET page 2: %v", err)
+	}
+	resp = apiv1.WebhookRequestsSummary{}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		t.Fatalf("unmarshal page 2: %v", err)
+	}
+	if len(resp.Messages) != 4 {
+		t.Fatalf("expected 4 messages on page 2, got %d", len(resp.Messages))
+	}
+	if resp.Start != 4 {
+		t.Fatalf("expected start 4, got %d", resp.Start)
+	}
+	for _, m := range resp.Messages {
+		if page1IDs[m.ID] {
+			t.Fatalf("page 2 contains ID %s from page 1", m.ID)
+		}
+	}
+
+	// last page: start=8, limit=4 — only 2 remain
+	data, err = clientGet(ts.URL + "/api/v1/webhooks?start=8&limit=4")
+	if err != nil {
+		t.Fatalf("GET last page: %v", err)
+	}
+	resp = apiv1.WebhookRequestsSummary{}
+	_ = json.Unmarshal(data, &resp)
+	if len(resp.Messages) != 2 {
+		t.Fatalf("expected 2 messages on last page, got %d", len(resp.Messages))
+	}
+}
+
+func TestAPIv1SMSSearchPagination(t *testing.T) {
+	setup()
+	defer storage.Close()
+
+	r := apiRoutes()
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+
+	for i := range 8 {
+		if _, err := storage.StoreSMS("+1555", "+1666", fmt.Sprintf("Searchable content %d", i), ""); err != nil {
+			t.Fatalf("StoreSMS: %v", err)
+		}
+	}
+
+	// page 1
+	data, err := clientGet(ts.URL + "/api/v1/sms/search?query=Searchable&limit=3")
+	if err != nil {
+		t.Fatalf("GET search page 1: %v", err)
+	}
+	result := apiv1.SMSSearchResult{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal page 1: %v", err)
+	}
+	if result.Total != 8 {
+		t.Fatalf("expected total 8, got %d", result.Total)
+	}
+	if len(result.Messages) != 3 {
+		t.Fatalf("expected 3 results on page 1, got %d", len(result.Messages))
+	}
+
+	page1IDs := make(map[string]bool)
+	for _, m := range result.Messages {
+		page1IDs[m.ID] = true
+	}
+
+	// page 2
+	data, err = clientGet(ts.URL + "/api/v1/sms/search?query=Searchable&start=3&limit=3")
+	if err != nil {
+		t.Fatalf("GET search page 2: %v", err)
+	}
+	result = apiv1.SMSSearchResult{}
+	_ = json.Unmarshal(data, &result)
+	if len(result.Messages) != 3 {
+		t.Fatalf("expected 3 results on page 2, got %d", len(result.Messages))
+	}
+	for _, m := range result.Messages {
+		if page1IDs[m.ID] {
+			t.Fatalf("page 2 contains ID %s from page 1", m.ID)
+		}
+	}
+}
+
+func TestAPIv1WebhooksSearchPagination(t *testing.T) {
+	setup()
+	defer storage.Close()
+
+	r := apiRoutes()
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+
+	for i := range 8 {
+		path := fmt.Sprintf("/searchable/%d", i)
+		if _, err := storage.StoreWebhook("POST", path, "", nil, nil, "", "127.0.0.1"); err != nil {
+			t.Fatalf("StoreWebhook: %v", err)
+		}
+	}
+
+	// page 1
+	data, err := clientGet(ts.URL + "/api/v1/webhooks/search?query=/searchable/&limit=3")
+	if err != nil {
+		t.Fatalf("GET search page 1: %v", err)
+	}
+	result := apiv1.WebhookSearchResult{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal page 1: %v", err)
+	}
+	if result.Total != 8 {
+		t.Fatalf("expected total 8, got %d", result.Total)
+	}
+	if len(result.Messages) != 3 {
+		t.Fatalf("expected 3 results on page 1, got %d", len(result.Messages))
+	}
+
+	page1IDs := make(map[string]bool)
+	for _, m := range result.Messages {
+		page1IDs[m.ID] = true
+	}
+
+	// page 2
+	data, err = clientGet(ts.URL + "/api/v1/webhooks/search?query=/searchable/&start=3&limit=3")
+	if err != nil {
+		t.Fatalf("GET search page 2: %v", err)
+	}
+	result = apiv1.WebhookSearchResult{}
+	_ = json.Unmarshal(data, &result)
+	if len(result.Messages) != 3 {
+		t.Fatalf("expected 3 results on page 2, got %d", len(result.Messages))
+	}
+	for _, m := range result.Messages {
+		if page1IDs[m.ID] {
+			t.Fatalf("page 2 contains ID %s from page 1", m.ID)
+		}
+	}
+}
+
+func TestAPIv1SMSSearch(t *testing.T) {
+	setup()
+	defer storage.Close()
+
+	r := apiRoutes()
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+
+	// missing query param returns error
+	resp, err := http.Get(ts.URL + "/api/v1/sms/search")
+	if err != nil {
+		t.Fatalf("GET /api/v1/sms/search no query: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 for missing query, got %d", resp.StatusCode)
+	}
+
+	// seed messages
+	_, _ = storage.StoreSMS("+15550001111", "+15552223333", "Hello from Alice", "")
+	_, _ = storage.StoreSMS("+15559998888", "+15552223333", "Hello from Bob", "")
+	_, _ = storage.StoreSMS("+15550001111", "+15557776666", "Unrelated content here", "")
+
+	// search matching two messages
+	data, err := clientGet(ts.URL + "/api/v1/sms/search?query=Hello")
+	if err != nil {
+		t.Fatalf("GET /api/v1/sms/search?query=Hello: %v", err)
+	}
+	result := apiv1.SMSSearchResult{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal SMSSearchResult: %v", err)
+	}
+	if result.Total != 2 {
+		t.Fatalf("expected total 2, got %d", result.Total)
+	}
+	if len(result.Messages) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(result.Messages))
+	}
+
+	// search matching one message
+	data, err = clientGet(ts.URL + "/api/v1/sms/search?query=Unrelated")
+	if err != nil {
+		t.Fatalf("GET /api/v1/sms/search?query=Unrelated: %v", err)
+	}
+	result = apiv1.SMSSearchResult{}
+	_ = json.Unmarshal(data, &result)
+	if result.Total != 1 {
+		t.Fatalf("expected total 1, got %d", result.Total)
+	}
+
+	// search with no matches returns empty list (not null)
+	data, err = clientGet(ts.URL + "/api/v1/sms/search?query=zzz_nomatch")
+	if err != nil {
+		t.Fatalf("GET /api/v1/sms/search?query=zzz_nomatch: %v", err)
+	}
+	result = apiv1.SMSSearchResult{}
+	_ = json.Unmarshal(data, &result)
+	if result.Total != 0 {
+		t.Fatalf("expected total 0, got %d", result.Total)
+	}
+	// ensure Messages is [] not null in JSON
+	if !bytes.Contains(data, []byte(`"messages":[]`)) {
+		t.Fatalf("expected messages to be empty array, got: %s", string(data))
+	}
+}
+
+func TestAPIv1WebhooksSearch(t *testing.T) {
+	setup()
+	defer storage.Close()
+
+	r := apiRoutes()
+	ts := httptest.NewServer(r)
+	defer ts.Close()
+
+	// missing query param returns error
+	resp, err := http.Get(ts.URL + "/api/v1/webhooks/search")
+	if err != nil {
+		t.Fatalf("GET /api/v1/webhooks/search no query: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 for missing query, got %d", resp.StatusCode)
+	}
+
+	// seed webhooks
+	_, _ = storage.StoreWebhook("POST", "/api/orders", "", nil, []byte(`{"item":"book"}`), "application/json", "10.0.0.1")
+	_, _ = storage.StoreWebhook("GET", "/api/health", "status=ok", nil, nil, "", "10.0.0.2")
+	_, _ = storage.StoreWebhook("DELETE", "/api/orders/42", "", nil, nil, "", "192.168.1.5")
+
+	// search matching two webhooks by path
+	data, err := clientGet(ts.URL + "/api/v1/webhooks/search?query=/api/orders")
+	if err != nil {
+		t.Fatalf("GET /api/v1/webhooks/search?query=/api/orders: %v", err)
+	}
+	result := apiv1.WebhookSearchResult{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal WebhookSearchResult: %v", err)
+	}
+	if result.Total != 2 {
+		t.Fatalf("expected total 2, got %d", result.Total)
+	}
+
+	// search by method
+	data, err = clientGet(ts.URL + "/api/v1/webhooks/search?query=DELETE")
+	if err != nil {
+		t.Fatalf("GET /api/v1/webhooks/search?query=DELETE: %v", err)
+	}
+	result = apiv1.WebhookSearchResult{}
+	_ = json.Unmarshal(data, &result)
+	if result.Total != 1 {
+		t.Fatalf("expected total 1, got %d", result.Total)
+	}
+	if result.Messages[0].Method != "DELETE" {
+		t.Fatalf("expected DELETE method, got %s", result.Messages[0].Method)
+	}
+
+	// no matches — messages must be [] not null
+	data, err = clientGet(ts.URL + "/api/v1/webhooks/search?query=zzz_nomatch")
+	if err != nil {
+		t.Fatalf("GET /api/v1/webhooks/search?query=zzz_nomatch: %v", err)
+	}
+	result = apiv1.WebhookSearchResult{}
+	_ = json.Unmarshal(data, &result)
+	if result.Total != 0 {
+		t.Fatalf("expected total 0, got %d", result.Total)
+	}
+	if !bytes.Contains(data, []byte(`"messages":[]`)) {
+		t.Fatalf("expected messages to be empty array, got: %s", string(data))
+	}
+}
+
 func setup() {
 	logger.NoLogging = true
 	config.MaxMessages = 0

@@ -3,6 +3,7 @@ package apiv1
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/coreydaley/messagepit/internal/storage"
 	"github.com/gorilla/mux"
@@ -14,6 +15,45 @@ type SMSMessagesSummary struct {
 	Unread   uint64                      `json:"unread"`
 	Start    int                         `json:"start"`
 	Messages []storage.SMSMessageSummary `json:"messages"`
+}
+
+// SMSSearchResult is the response shape for the SMS search endpoint.
+type SMSSearchResult struct {
+	Total    int                         `json:"total"`
+	Start    int                         `json:"start"`
+	Messages []storage.SMSMessageSummary `json:"messages"`
+}
+
+// SearchSMSMessages returns SMS messages matching a search query.
+func SearchSMSMessages(w http.ResponseWriter, r *http.Request) {
+	query := strings.TrimSpace(r.URL.Query().Get("query"))
+	if query == "" {
+		httpError(w, "Error: no search query")
+		return
+	}
+
+	start, _, limit := getStartLimit(r)
+
+	messages, total, err := storage.SearchSMS(query, start, limit)
+	if err != nil {
+		httpError(w, err.Error())
+		return
+	}
+
+	if messages == nil {
+		messages = []storage.SMSMessageSummary{}
+	}
+
+	resp := SMSSearchResult{
+		Total:    total,
+		Start:    start,
+		Messages: messages,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		httpError(w, err.Error())
+	}
 }
 
 // GetSMSMessages returns a paginated list of SMS messages as JSON.

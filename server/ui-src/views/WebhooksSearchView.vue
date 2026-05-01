@@ -27,6 +27,8 @@ export default {
 			smsStore,
 			webhooksStore,
 			search: "",
+			results: [],
+			total: 0,
 		};
 	},
 
@@ -37,26 +39,30 @@ export default {
 
 	watch: {
 		$route() {
-			this.loadWebhooks();
+			this.doSearch();
 		},
 	},
 
 	mounted() {
-		this.loadWebhooks();
-		this.refreshUI();
-		this.eventBus.on("webhook", this.handleWSNew);
+		this.doSearch();
 		this.eventBus.on("webhook_delete", this.handleWSDelete);
 		this.eventBus.on("webhook_truncate", this.handleWSTruncate);
 	},
 
 	unmounted() {
-		this.eventBus.off("webhook", this.handleWSNew);
 		this.eventBus.off("webhook_delete", this.handleWSDelete);
 		this.eventBus.off("webhook_truncate", this.handleWSTruncate);
 	},
 
 	methods: {
-		loadWebhooks() {
+		doSearch() {
+			const q = this.getSearch();
+			if (!q) {
+				this.$router.push("/webhooks");
+				return;
+			}
+			this.search = q;
+
 			const p = this.getPaginationParams();
 			if (p?.start) {
 				pagination.start = p.start;
@@ -68,31 +74,27 @@ export default {
 			}
 
 			this.get(
-				this.resolve("/api/v1/webhooks"),
-				{ start: pagination.start, limit: pagination.limit },
+				this.resolve("/api/v1/webhooks/search"),
+				{ query: q, start: pagination.start, limit: pagination.limit },
 				(response) => {
-					webhooksStore.total = response.data.total;
-					webhooksStore.unread = response.data.unread;
-					webhooksStore.messages = response.data.messages;
+					this.results = response.data.messages || [];
+					this.total = response.data.total;
 					pagination.start = response.data.start;
 				},
 			);
 		},
 
-		deleteAll() {
-			this.delete(this.resolve("/api/v1/webhooks"), {}, () => {
-				webhooksStore.messages = [];
-				webhooksStore.total = 0;
-				webhooksStore.unread = 0;
-				pagination.start = 0;
-			});
+		submitSearch(e) {
+			e.preventDefault();
+			if (this.search.trim()) {
+				this.$router.push("/webhooks/search?q=" + encodeURIComponent(this.search.trim()));
+			} else {
+				this.$router.push("/webhooks");
+			}
 		},
 
-		refreshUI() {
-			window.setTimeout(() => {
-				this.$forceUpdate();
-				this.refreshUI();
-			}, 30000);
+		resetSearch() {
+			this.$router.push("/webhooks");
 		},
 
 		getRelativeCreated(msg) {
@@ -112,30 +114,12 @@ export default {
 			return map[method] || "text-bg-secondary";
 		},
 
-		handleWSNew(data) {
-			if (pagination.start === 0) {
-				webhooksStore.messages.unshift(data);
-			}
-		},
-
 		handleWSDelete(id) {
-			webhooksStore.messages = webhooksStore.messages.filter((m) => m.ID !== id);
+			this.results = this.results.filter((m) => m.ID !== id);
 		},
 
 		handleWSTruncate() {
-			pagination.start = 0;
-			this.loadWebhooks();
-		},
-
-		submitSearch(e) {
-			e.preventDefault();
-			if (this.search.trim()) {
-				this.$router.push("/webhooks/search?q=" + encodeURIComponent(this.search.trim()));
-			}
-		},
-
-		resetSearch() {
-			this.search = "";
+			this.$router.push("/webhooks");
 		},
 	},
 };
@@ -199,8 +183,8 @@ export default {
 					class="btn btn-outline-light me-2"
 					type="button"
 					data-bs-toggle="offcanvas"
-					data-bs-target="#webhooksOffcanvas"
-					aria-controls="webhooksOffcanvas"
+					data-bs-target="#webhooksSearchOffcanvas"
+					aria-controls="webhooksSearchOffcanvas"
 				>
 					<i class="bi bi-list"></i>
 				</button>
@@ -210,19 +194,19 @@ export default {
 	</div>
 
 	<div
-		id="webhooksOffcanvas"
+		id="webhooksSearchOffcanvas"
 		class="offcanvas-md offcanvas-start d-md-none"
 		data-bs-scroll="true"
 		tabindex="-1"
-		aria-labelledby="webhooksOffcanvasLabel"
+		aria-labelledby="webhooksSearchOffcanvasLabel"
 	>
 		<div class="offcanvas-header">
-			<h5 id="webhooksOffcanvasLabel" class="offcanvas-title">Webhooks</h5>
+			<h5 id="webhooksSearchOffcanvasLabel" class="offcanvas-title">Webhook Search</h5>
 			<button
 				type="button"
 				class="btn-close"
 				data-bs-dismiss="offcanvas"
-				data-bs-target="#webhooksOffcanvas"
+				data-bs-target="#webhooksSearchOffcanvas"
 				aria-label="Close"
 			></button>
 		</div>
@@ -230,21 +214,10 @@ export default {
 			<div class="d-flex flex-column h-100">
 				<div class="flex-grow-1 overflow-y-auto me-n3 pe-3">
 					<div class="list-group my-2">
-						<button class="list-group-item list-group-item-action active" disabled>
-							<i class="bi bi-arrow-left-right me-1"></i>
-							Webhooks
-							<span v-if="webhooksStore.unread" class="badge rounded-pill ms-1 float-end text-bg-secondary">
-								{{ formatNumber(webhooksStore.unread) }}
-							</span>
-						</button>
-						<button
-							class="list-group-item list-group-item-action"
-							:disabled="!webhooksStore.total"
-							@click="deleteAll"
-						>
-							<i class="bi bi-trash-fill me-1 text-danger"></i>
-							Delete all
-						</button>
+						<RouterLink to="/webhooks" class="list-group-item list-group-item-action">
+							<i class="bi bi-arrow-left me-1"></i>
+							All Webhooks
+						</RouterLink>
 					</div>
 				</div>
 
@@ -256,21 +229,13 @@ export default {
 		<div class="d-none d-md-flex h-100 col-xl-2 col-md-3 flex-column">
 			<div class="flex-grow-1 overflow-y-auto me-n3 pe-3">
 				<div class="list-group my-2">
-					<button class="list-group-item list-group-item-action active" disabled>
-						<i class="bi bi-arrow-left-right me-1"></i>
-						Webhooks
-						<span v-if="webhooksStore.unread" class="badge rounded-pill ms-1 float-end text-bg-secondary">
-							{{ formatNumber(webhooksStore.unread) }}
-						</span>
-					</button>
-					<button
-						class="list-group-item list-group-item-action"
-						:disabled="!webhooksStore.total"
-						@click="deleteAll"
-					>
-						<i class="bi bi-trash-fill me-1 text-danger"></i>
-						Delete all
-					</button>
+					<RouterLink to="/webhooks" class="list-group-item list-group-item-action">
+						<i class="bi bi-arrow-left me-1"></i>
+						All Webhooks
+					</RouterLink>
+					<div v-if="total" class="list-group-item disabled small text-muted">
+						{{ formatNumber(total) }} result{{ total !== 1 ? "s" : "" }}
+					</div>
 				</div>
 			</div>
 
@@ -278,13 +243,13 @@ export default {
 
 		<div class="col-xl-10 col-md-9 d-flex flex-column mh-100 ps-0 ps-md-2 pe-0">
 			<div id="webhook-list" class="flex-grow-1 overflow-y-auto">
-				<template v-if="!webhooksStore.messages.length">
-					<p class="text-center text-muted mt-5">No webhook requests captured</p>
+				<template v-if="!loading && !results.length">
+					<p class="text-center text-muted mt-5">No results for "{{ search }}"</p>
 				</template>
 				<template v-else>
 					<div class="list-group list-group-flush">
 						<RouterLink
-							v-for="msg in webhooksStore.messages"
+							v-for="msg in results"
 							:key="msg.ID"
 							:to="'/webhooks/view/' + msg.ID"
 							class="row gx-1 d-flex small list-group-item list-group-item-action message py-2 px-3"
@@ -309,7 +274,7 @@ export default {
 					</div>
 				</template>
 			</div>
-			<Pagination :total="webhooksStore.total" :count="webhooksStore.messages.length" />
+			<Pagination :total="total" :count="results.length" />
 		</div>
 	</div>
 

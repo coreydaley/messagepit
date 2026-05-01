@@ -66,7 +66,7 @@ export default {
 </script>
 
 <template>
-	<form @submit="doSearch">
+	<form class="flex-fill" @submit="doSearch">
 		<div class="input-group flex-nowrap">
 			<div class="ms-md-2 d-flex border bg-body rounded-start flex-fill position-relative">
 				<input
@@ -74,11 +74,11 @@ export default {
 					type="text"
 					class="form-control border-0"
 					aria-label="Search"
-					placeholder="Search mailbox"
+					placeholder="Search messages"
 				/>
-				<span v-if="search != ''" class="btn btn-link position-absolute end-0 text-muted" @click="resetSearch"
-					><i class="bi bi-x-circle"></i
-				></span>
+				<span v-if="search != ''" class="btn btn-link position-absolute end-0 text-muted" @click="resetSearch">
+					<i class="bi bi-x-circle"></i>
+				</span>
 			</div>
 			<button class="btn btn-outline-secondary" type="submit">
 				<i class="bi bi-search"></i>

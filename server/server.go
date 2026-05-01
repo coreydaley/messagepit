@@ -108,8 +108,10 @@ func Listen() {
 	r.Path(config.Webroot + "search").Handler(middleWareFunc(index)).Methods("GET")
 	r.Path(config.Webroot + "sms").Handler(middleWareFunc(index)).Methods("GET")
 	r.PathPrefix(config.Webroot + "sms/view/").Handler(middleWareFunc(index)).Methods("GET")
+	r.Path(config.Webroot + "sms/search").Handler(middleWareFunc(index)).Methods("GET")
 	r.Path(config.Webroot + "webhooks").Handler(middleWareFunc(index)).Methods("GET")
 	r.PathPrefix(config.Webroot + "webhooks/view/").Handler(middleWareFunc(index)).Methods("GET")
+	r.Path(config.Webroot + "webhooks/search").Handler(middleWareFunc(index)).Methods("GET")
 	r.Path(config.Webroot).Handler(middleWareFunc(index)).Methods("GET")
 
 	if auth.UICredentials != nil {
@@ -272,6 +274,7 @@ func apiRoutes() *mux.Router {
 	}
 
 	// MessagePit SMS API
+	r.HandleFunc(config.Webroot+"api/v1/sms/search", middleWareFunc(apiv1.SearchSMSMessages)).Methods("GET")
 	r.HandleFunc(config.Webroot+"api/v1/sms/messages", middleWareFunc(apiv1.GetSMSMessages)).Methods("GET")
 	r.HandleFunc(config.Webroot+"api/v1/sms/messages", middleWareFunc(apiv1.DeleteAllSMS)).Methods("DELETE")
 	r.HandleFunc(config.Webroot+"api/v1/sms/message/{id}", middleWareFunc(apiv1.GetSMSMessage)).Methods("GET")
@@ -279,6 +282,7 @@ func apiRoutes() *mux.Router {
 	r.HandleFunc(config.Webroot+"api/v1/sms/message/{id}/read", middleWareFunc(apiv1.MarkSMSRead)).Methods("PUT")
 
 	// MessagePit Webhook API
+	r.HandleFunc(config.Webroot+"api/v1/webhooks/search", middleWareFunc(apiv1.SearchWebhookRequests)).Methods("GET")
 	r.HandleFunc(config.Webroot+"api/v1/webhooks", middleWareFunc(apiv1.GetWebhooks)).Methods("GET")
 	r.HandleFunc(config.Webroot+"api/v1/webhooks", middleWareFunc(apiv1.DeleteAllWebhooks)).Methods("DELETE")
 	r.HandleFunc(config.Webroot+"api/v1/webhook/{id}", middleWareFunc(apiv1.GetWebhook)).Methods("GET")

@@ -165,6 +165,93 @@ func TestSMSDelete(t *testing.T) {
 	}
 }
 
+func TestSearchSMS(t *testing.T) {
+	setup("")
+	defer Close()
+
+	// store messages with distinguishable content
+	_, _ = StoreSMS("+15550001111", "+15552223333", "Hello from Alice", "")
+	_, _ = StoreSMS("+15559998888", "+15552223333", "Hello from Bob", "")
+	_, _ = StoreSMS("+15550001111", "+15557776666", "Completely different content", "")
+
+	// match on body
+	results, total, err := SearchSMS("Hello", 0, 10)
+	if err != nil {
+		t.Fatalf("SearchSMS: %v", err)
+	}
+	assertEqual(t, total, 2, "total matches for 'Hello'")
+	assertEqual(t, len(results), 2, "returned results for 'Hello'")
+
+	// match on From number
+	results, total, err = SearchSMS("+15559998888", 0, 10)
+	if err != nil {
+		t.Fatalf("SearchSMS by From: %v", err)
+	}
+	assertEqual(t, total, 1, "total matches for From number")
+	assertEqual(t, len(results), 1, "returned results for From number")
+	assertEqual(t, results[0].From, "+15559998888", "From number")
+
+	// match on To number
+	results, total, err = SearchSMS("+15557776666", 0, 10)
+	if err != nil {
+		t.Fatalf("SearchSMS by To: %v", err)
+	}
+	assertEqual(t, total, 1, "total matches for To number")
+	assertEqual(t, results[0].To, "+15557776666", "To number")
+
+	// no match
+	results, total, err = SearchSMS("zzz_nomatch", 0, 10)
+	if err != nil {
+		t.Fatalf("SearchSMS no match: %v", err)
+	}
+	assertEqual(t, total, 0, "total for no-match query")
+	assertEqual(t, len(results), 0, "results for no-match query")
+}
+
+func TestSearchSMSPagination(t *testing.T) {
+	setup("")
+	defer Close()
+
+	for i := range 10 {
+		body := "Paginated message " + string(rune('A'+i))
+		if _, err := StoreSMS("+15550001111", "+15552223333", body, ""); err != nil {
+			t.Fatalf("StoreSMS: %v", err)
+		}
+	}
+
+	page1, total, err := SearchSMS("Paginated", 0, 3)
+	if err != nil {
+		t.Fatalf("SearchSMS page1: %v", err)
+	}
+	assertEqual(t, total, 10, "total across pages")
+	assertEqual(t, len(page1), 3, "page 1 count")
+
+	page2, _, err := SearchSMS("Paginated", 3, 3)
+	if err != nil {
+		t.Fatalf("SearchSMS page2: %v", err)
+	}
+	assertEqual(t, len(page2), 3, "page 2 count")
+
+	if page1[0].ID == page2[0].ID {
+		t.Fatal("page 1 and page 2 returned the same message")
+	}
+}
+
+func TestSearchSMSEmptyQuery(t *testing.T) {
+	setup("")
+	defer Close()
+
+	_, _ = StoreSMS("+1555", "+1666", "body", "")
+
+	// empty LIKE matches everything — confirm it returns the stored message
+	results, total, err := SearchSMS("", 0, 10)
+	if err != nil {
+		t.Fatalf("SearchSMS empty query: %v", err)
+	}
+	assertEqual(t, total, 1, "empty query matches all")
+	assertEqual(t, len(results), 1, "empty query result count")
+}
+
 func TestSMSDeleteAll(t *testing.T) {
 	setup("")
 	defer Close()

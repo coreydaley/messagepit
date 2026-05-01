@@ -127,7 +127,7 @@ export default {
 	<div class="navbar navbar-expand-lg row flex-shrink-0 bg-primary text-white d-print-none" data-bs-theme="dark">
 		<div class="col-xl-2 col-md-3 col-auto pe-0">
 			<RouterLink to="/" class="navbar-brand text-white me-0" @click="pagination.start = 0">
-				<img :src="resolve('/mailpit.svg')" alt="MessagePit" />
+				<i class="bi bi-funnel-fill"></i>
 				<span class="ms-2 d-none d-sm-inline">MessagePit</span>
 			</RouterLink>
 		</div>
@@ -135,7 +135,7 @@ export default {
 			<SearchForm @load-messages="loadMessages" />
 		</div>
 		<div class="col-12 col-md-auto col-lg-4 col-xl-4 text-end mt-2 mt-lg-0">
-			<div class="float-start d-md-none">
+			<div class="me-auto d-md-none">
 				<button
 					class="btn btn-outline-light me-2"
 					type="button"
@@ -146,7 +146,7 @@ export default {
 					<i class="bi bi-list"></i>
 				</button>
 			</div>
-			<Pagination :total="mailbox.count" />
+			<About navbar />
 		</div>
 	</div>
 
@@ -173,7 +173,7 @@ export default {
 					<NavSearch @load-messages="loadMessages" />
 					<NavTags />
 				</div>
-				<About />
+
 			</div>
 		</div>
 	</div>
@@ -184,13 +184,14 @@ export default {
 				<NavSearch @load-messages="loadMessages" />
 				<NavTags />
 			</div>
-			<About />
+
 		</div>
 
-		<div class="col-xl-10 col-md-9 mh-100 ps-0 ps-md-2 pe-0">
-			<div id="message-page" class="mh-100" style="overflow-y: auto">
+		<div class="col-xl-10 col-md-9 d-flex flex-column mh-100 ps-0 ps-md-2 pe-0">
+			<div id="message-page" class="flex-grow-1 overflow-y-auto">
 				<ListMessages :loading-messages="loading" />
 			</div>
+			<Pagination :total="mailbox.count" />
 		</div>
 	</div>
 

@@ -3,10 +3,50 @@ package apiv1
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/coreydaley/messagepit/internal/storage"
 	"github.com/gorilla/mux"
 )
+
+// WebhookSearchResult is the response shape for the webhook search endpoint.
+type WebhookSearchResult struct {
+	Total    int                             `json:"total"`
+	Start    int                             `json:"start"`
+	Messages []storage.WebhookRequestSummary `json:"messages"`
+}
+
+// SearchWebhookRequests returns webhook requests matching a search query.
+func SearchWebhookRequests(w http.ResponseWriter, r *http.Request) {
+	query := strings.TrimSpace(r.URL.Query().Get("query"))
+	if query == "" {
+		httpError(w, "Error: no search query")
+		return
+	}
+
+	start, _, limit := getStartLimit(r)
+
+	messages, total, err := storage.SearchWebhooks(query, start, limit)
+	if err != nil {
+		httpError(w, err.Error())
+		return
+	}
+
+	if messages == nil {
+		messages = []storage.WebhookRequestSummary{}
+	}
+
+	resp := WebhookSearchResult{
+		Total:    total,
+		Start:    start,
+		Messages: messages,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		httpError(w, err.Error())
+	}
+}
 
 // WebhookRequestsSummary is the response shape for the webhook list endpoint.
 type WebhookRequestsSummary struct {

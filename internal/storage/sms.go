@@ -11,6 +11,45 @@ import (
 	"github.com/lithammer/shortuuid/v4"
 )
 
+// SearchSMS returns SMS messages matching query across From, To, and Body fields.
+// Returns the matching page and total match count.
+func SearchSMS(query string, start, limit int) ([]SMSMessageSummary, int, error) {
+	like := "%" + query + "%"
+	results := []SMSMessageSummary{}
+
+	q := sqlf.From(tenant("sms_mailbox")).
+		Select(`ID, FromNumber, ToNumber, Body, Read, Created`).
+		Where(`(FromNumber LIKE ? OR ToNumber LIKE ? OR Body LIKE ?)`, like, like, like).
+		OrderBy("Created DESC").
+		Limit(limit).
+		Offset(start)
+
+	if err := q.QueryAndClose(context.TODO(), db, func(row *sql.Rows) {
+		var msg SMSMessageSummary
+		var created float64
+		var read int
+		if err := row.Scan(&msg.ID, &msg.From, &msg.To, &msg.Body, &read, &created); err != nil {
+			logger.Log().Errorf("[db] %s", err.Error())
+			return
+		}
+		msg.Read = read == 1
+		msg.Created = time.UnixMilli(int64(created))
+		results = append(results, msg)
+	}); err != nil {
+		return results, 0, err
+	}
+
+	var count int
+	if err := db.QueryRow( // #nosec
+		fmt.Sprintf(`SELECT COUNT(*) FROM %s WHERE (FromNumber LIKE ? OR ToNumber LIKE ? OR Body LIKE ?)`, tenant("sms_mailbox")),
+		like, like, like,
+	).Scan(&count); err != nil {
+		return results, 0, err
+	}
+
+	return results, count, nil
+}
+
 // StoreSMS saves an inbound SMS message to the database.
 // Returns the database ID of the saved message.
 func StoreSMS(from, to, body, accountSID string) (string, error) {

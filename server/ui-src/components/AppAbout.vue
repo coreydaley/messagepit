@@ -17,6 +17,10 @@ export default {
 			type: Boolean,
 			default: false,
 		},
+		navbar: {
+			type: Boolean,
+			default: false,
+		},
 	},
 
 	data() {
@@ -62,35 +66,38 @@ export default {
 </script>
 
 <template>
-	<template v-if="!modals">
-		<div class="bg-body ms-sm-n1 me-sm-n1 py-2 text-muted small about-messagepit">
-			<button class="text-muted btn btn-sm" @click="loadInfo()">
-				<i class="bi bi-info-circle-fill me-1"></i>
-				About
-			</button>
-
-			<button
-				class="btn btn-sm btn-outline-secondary float-end"
-				data-bs-toggle="modal"
-				data-bs-target="#SettingsModal"
-				title="MessagePit UI settings"
-			>
-				<i class="bi bi-gear-fill"></i>
-			</button>
-
-			<button
-				v-if="mailbox.connected && mailbox.notificationsSupported && !mailbox.notificationsEnabled"
-				class="btn btn-sm btn-outline-secondary float-end me-2"
-				data-bs-toggle="modal"
-				data-bs-target="#EnableNotificationsModal"
-				title="Enable browser notifications"
-			>
-				<i class="bi bi-bell"></i>
-			</button>
-		</div>
+	<template v-if="navbar">
+		<button class="btn btn-sm text-white opacity-75 px-2" title="About MessagePit" @click="loadInfo()">
+			<i class="bi bi-info-circle-fill"></i>
+		</button>
+		<RouterLink
+			:to="resolve('/api/v1/')"
+			target="_blank"
+			class="btn btn-sm text-white opacity-75 px-2 no-icon"
+			title="API documentation"
+		>
+			<i class="bi bi-book"></i>
+		</RouterLink>
+		<button
+			v-if="mailbox.connected && mailbox.notificationsSupported && !mailbox.notificationsEnabled"
+			class="btn btn-sm text-white opacity-75 px-2"
+			data-bs-toggle="modal"
+			data-bs-target="#EnableNotificationsModal"
+			title="Enable browser notifications"
+		>
+			<i class="bi bi-bell"></i>
+		</button>
+		<button
+			class="btn btn-sm text-white opacity-75 px-2"
+			data-bs-toggle="modal"
+			data-bs-target="#SettingsModal"
+			title="MessagePit UI settings"
+		>
+			<i class="bi bi-gear-fill"></i>
+		</button>
 	</template>
 
-	<template v-else>
+	<template v-else-if="modals">
 		<!-- Modals -->
 		<div
 			id="AppInfoModal"
@@ -111,131 +118,76 @@ export default {
 					</div>
 					<div class="modal-body">
 						<div class="row g-3">
-							<div class="col-xl-6">
-								<div v-if="mailbox.appInfo.LatestVersion != 'disabled'">
-									<div v-if="mailbox.appInfo.LatestVersion == ''" class="row g-3">
-										<div class="col">
-											<div class="alert alert-warning mb-3">
-												There might be a newer version available. The check failed.
-											</div>
-										</div>
-									</div>
-									<div
-										v-else-if="mailbox.appInfo.Version != mailbox.appInfo.LatestVersion"
-										class="row g-3"
-									>
-										<div class="col">
-											<a
-												class="btn btn-warning d-block mb-3"
-												:href="
-													'https://github.com/coreydaley/messagepit/releases/tag/' +
-													mailbox.appInfo.LatestVersion
-												"
-											>
-												A new version of MessagePit ({{ mailbox.appInfo.LatestVersion }}) is
-												available.
-											</a>
-										</div>
+							<div v-if="mailbox.appInfo.LatestVersion != 'disabled'" class="col-12">
+								<div v-if="mailbox.appInfo.LatestVersion == ''">
+									<div class="alert alert-warning mb-0">
+										There might be a newer version available. The check failed.
 									</div>
 								</div>
-								<div class="row g-3">
-									<div class="col-12">
-										<RouterLink to="/api/v1/" class="btn btn-primary w-100" target="_blank">
-											<i class="bi bi-braces"></i>
-											OpenAPI / Swagger API documentation
-										</RouterLink>
-									</div>
-									<div class="col-sm-6">
-										<a
-											class="btn btn-primary w-100"
-											href="https://github.com/coreydaley/messagepit"
-											target="_blank"
-										>
-											<i class="bi bi-github"></i>
-											Github
-										</a>
-									</div>
-									<div class="col-sm-6">
-										<a
-											class="btn btn-primary w-100"
-											href="https://github.com/coreydaley/messagepit#readme"
-											target="_blank"
-										>
-											Documentation
-										</a>
-									</div>
-									<div class="col-6">
-										<div class="card border-secondary text-center">
-											<div class="card-header">Database size</div>
-											<div class="card-body text-muted">
-												<h5 class="card-title">
-													{{ getFileSize(mailbox.appInfo.DatabaseSize) }}
-												</h5>
-											</div>
-										</div>
-									</div>
-									<div class="col-6">
-										<div class="card border-secondary text-center">
-											<div class="card-header">RAM usage</div>
-											<div class="card-body text-muted">
-												<h5 class="card-title">
-													{{ getFileSize(mailbox.appInfo.RuntimeStats.Memory) }}
-												</h5>
-											</div>
-										</div>
+								<div v-else-if="mailbox.appInfo.Version != mailbox.appInfo.LatestVersion">
+									<a
+										class="btn btn-warning d-block"
+										:href="
+											'https://github.com/coreydaley/messagepit/releases/tag/' +
+											mailbox.appInfo.LatestVersion
+										"
+									>
+										A new version of MessagePit ({{ mailbox.appInfo.LatestVersion }}) is available.
+									</a>
+								</div>
+							</div>
+							<div class="col-12">
+								<RouterLink to="/api/v1/" class="btn btn-primary w-100" target="_blank">
+									<i class="bi bi-braces"></i>
+									OpenAPI / Swagger API documentation
+								</RouterLink>
+							</div>
+							<div class="col-sm-6">
+								<a
+									class="btn btn-primary w-100"
+									href="https://github.com/coreydaley/messagepit"
+									target="_blank"
+								>
+									<i class="bi bi-github"></i>
+									Github
+								</a>
+							</div>
+							<div class="col-sm-6">
+								<a
+									class="btn btn-primary w-100"
+									href="https://github.com/coreydaley/messagepit#readme"
+									target="_blank"
+								>
+									Documentation
+								</a>
+							</div>
+							<div class="col-4">
+								<div class="card border-secondary text-center h-100">
+									<div class="card-header small">Database size</div>
+									<div class="card-body text-muted d-flex align-items-center justify-content-center">
+										<h5 class="card-title mb-0">
+											{{ getFileSize(mailbox.appInfo.DatabaseSize) }}
+										</h5>
 									</div>
 								</div>
 							</div>
-							<div class="col-xl-6">
-								<div class="card border-secondary h-100">
-									<div class="card-header h4">
-										Runtime statistics
-										<button class="btn btn-sm btn-outline-secondary float-end" @click="loadInfo()">
-											Refresh
-										</button>
+							<div class="col-4">
+								<div class="card border-secondary text-center h-100">
+									<div class="card-header small">RAM usage</div>
+									<div class="card-body text-muted d-flex align-items-center justify-content-center">
+										<h5 class="card-title mb-0">
+											{{ getFileSize(mailbox.appInfo.RuntimeStats.Memory) }}
+										</h5>
 									</div>
-									<div class="card-body text-muted">
-										<table class="table table-sm table-borderless mb-0">
-											<tbody>
-												<tr>
-													<td>MessagePit up since</td>
-													<td>
-														{{ secondsToRelative(mailbox.appInfo.RuntimeStats.Uptime) }}
-													</td>
-												</tr>
-												<tr>
-													<td>Messages deleted</td>
-													<td>
-														{{ formatNumber(mailbox.appInfo.RuntimeStats.MessagesDeleted) }}
-													</td>
-												</tr>
-												<tr>
-													<td>SMTP messages accepted</td>
-													<td>
-														{{ formatNumber(mailbox.appInfo.RuntimeStats.SMTPAccepted) }}
-														<small class="text-muted">
-															({{
-																getFileSize(
-																	mailbox.appInfo.RuntimeStats.SMTPAcceptedSize,
-																)
-															}})
-														</small>
-													</td>
-												</tr>
-												<tr>
-													<td>SMTP messages rejected</td>
-													<td>
-														{{ formatNumber(mailbox.appInfo.RuntimeStats.SMTPRejected) }}
-													</td>
-												</tr>
-												<tr v-if="mailbox.uiConfig.DuplicatesIgnored">
-													<td>SMTP messages ignored</td>
-													<td>
-														{{ formatNumber(mailbox.appInfo.RuntimeStats.SMTPIgnored) }}
-													</td>
-												</tr>
-											</tbody>
-										</table>
+								</div>
+							</div>
+							<div class="col-4">
+								<div class="card border-secondary text-center h-100">
+									<div class="card-header small">Up since</div>
+									<div class="card-body text-muted d-flex align-items-center justify-content-center">
+										<h5 class="card-title mb-0">
+											{{ secondsToRelative(mailbox.appInfo.RuntimeStats.Uptime) }}
+										</h5>
 									</div>
 								</div>
 							</div>

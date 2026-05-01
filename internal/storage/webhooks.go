@@ -163,6 +163,46 @@ func DeleteAllWebhooks() error {
 	return nil
 }
 
+// SearchWebhooks returns webhook requests matching query across Method, Path, Query,
+// ContentType, SourceIP and Snippet fields. Returns the matching page and total match count.
+func SearchWebhooks(query string, start, limit int) ([]WebhookRequestSummary, int, error) {
+	like := "%" + query + "%"
+	results := []WebhookRequestSummary{}
+
+	q := sqlf.From(tenant("webhook_requests")).
+		Select(`ID, Method, Path, ContentType, SourceIP, BodySize, Snippet, Read, Created`).
+		Where(`(Method LIKE ? OR Path LIKE ? OR Query LIKE ? OR ContentType LIKE ? OR SourceIP LIKE ? OR Snippet LIKE ?)`,
+			like, like, like, like, like, like).
+		OrderBy("Created DESC").
+		Limit(limit).
+		Offset(start)
+
+	if err := q.QueryAndClose(context.TODO(), db, func(row *sql.Rows) {
+		var msg WebhookRequestSummary
+		var created float64
+		var read int
+		if err := row.Scan(&msg.ID, &msg.Method, &msg.Path, &msg.ContentType, &msg.SourceIP, &msg.BodySize, &msg.Snippet, &read, &created); err != nil {
+			logger.Log().Errorf("[db] %s", err.Error())
+			return
+		}
+		msg.Read = read == 1
+		msg.Created = time.UnixMilli(int64(created))
+		results = append(results, msg)
+	}); err != nil {
+		return results, 0, err
+	}
+
+	var count int
+	if err := db.QueryRow( // #nosec
+		fmt.Sprintf(`SELECT COUNT(*) FROM %s WHERE (Method LIKE ? OR Path LIKE ? OR Query LIKE ? OR ContentType LIKE ? OR SourceIP LIKE ? OR Snippet LIKE ?)`, tenant("webhook_requests")),
+		like, like, like, like, like, like,
+	).Scan(&count); err != nil {
+		return results, 0, err
+	}
+
+	return results, count, nil
+}
+
 // GetWebhookMailboxStats returns total and unread webhook request counts.
 func GetWebhookMailboxStats() (WebhookMailboxStats, error) {
 	var stats WebhookMailboxStats

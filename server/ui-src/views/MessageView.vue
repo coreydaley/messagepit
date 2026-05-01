@@ -479,7 +479,7 @@ export default {
 	<div class="navbar navbar-expand-lg row flex-shrink-0 bg-primary text-white d-print-none" data-bs-theme="dark">
 		<div class="d-none d-xl-block col-xl-3 col-auto pe-0">
 			<RouterLink to="/" class="navbar-brand text-white me-0" @click="pagination.start = 0">
-				<img :src="resolve('/mailpit.svg')" alt="MessagePit" />
+				<i class="bi bi-funnel-fill"></i>
 				<span class="ms-2 d-none d-sm-inline">MessagePit</span>
 			</RouterLink>
 		</div>
@@ -506,7 +506,7 @@ export default {
 				<span class="d-none d-md-inline">Delete</span>
 			</button>
 		</div>
-		<div v-if="!errorMessage" class="col-auto col-lg-4 col-xl-4 text-end">
+		<div v-if="!errorMessage" class="col-auto col-lg-4 col-xl-4 d-flex align-items-center justify-content-end gap-1">
 			<div id="DownloadBtn" class="dropdown d-inline-block">
 				<button
 					type="button"
@@ -608,6 +608,7 @@ export default {
 			<RouterLink :to="'/view/' + nextID" class="btn btn-outline-light" :class="nextID ? '' : 'disabled'">
 				<i class="bi bi-caret-right-fill" title="View next message"></i>
 			</RouterLink>
+			<About navbar />
 		</div>
 	</div>
 
@@ -702,7 +703,7 @@ export default {
 				</template>
 			</div>
 
-			<About />
+
 		</div>
 
 		<div class="col-xl-9 mh-100 ps-0 ps-md-2 pe-0">

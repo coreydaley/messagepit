@@ -11,6 +11,10 @@ export default {
 			type: Number,
 			default: 0,
 		},
+		count: {
+			type: Number,
+			default: null,
+		},
 	},
 
 	data() {
@@ -27,7 +31,8 @@ export default {
 		},
 
 		canNext() {
-			return this.total > pagination.start + mailbox.messages.length;
+			const c = this.count !== null ? this.count : mailbox.messages.length;
+			return this.total > pagination.start + c;
 		},
 
 		// returns the number of next X messages
@@ -83,39 +88,42 @@ export default {
 };
 </script>
 <template>
-	<select
-		v-model="pagination.limit"
-		class="form-select form-select-sm d-inline w-auto me-2 me-xl-3"
-		:disabled="total == 0"
-		title="The number of messages displayed per page"
-		@change="changeLimit"
-	>
-		<option v-for="option in limitOptions" :key="option" :value="option">{{ option }}</option>
-	</select>
+	<div class="d-flex align-items-center justify-content-center gap-2 py-2 border-top">
+		<button
+			class="btn btn-sm btn-outline-secondary"
+			:disabled="!canPrev"
+			:title="'View previous ' + pagination.limit + ' messages'"
+			@click="viewPrev"
+		>
+			<i class="bi bi-caret-left-fill"></i>
+		</button>
 
-	<small>
-		<template v-if="total > 0">
-			{{ formatNumber(pagination.start + 1) }}-{{ formatNumber(nextMessages) }}
-			<small>of</small>
-			{{ formatNumber(total) }}
-		</template>
-		<span v-else class="text-light">0 of 0</span>
-	</small>
+		<small class="text-muted">
+			<template v-if="total > 0">
+				{{ formatNumber(pagination.start + 1) }}–{{ formatNumber(nextMessages) }}
+				of
+				{{ formatNumber(total) }}
+			</template>
+			<span v-else>0 of 0</span>
+		</small>
 
-	<button
-		class="btn btn-outline-light ms-2 ms-xl-3 me-1"
-		:disabled="!canPrev"
-		:title="'View previous ' + pagination.limit + ' messages'"
-		@click="viewPrev"
-	>
-		<i class="bi bi-caret-left-fill"></i>
-	</button>
-	<button
-		class="btn btn-outline-light"
-		:disabled="!canNext"
-		:title="'View next ' + pagination.limit + ' messages'"
-		@click="viewNext"
-	>
-		<i class="bi bi-caret-right-fill"></i>
-	</button>
+		<select
+			v-model="pagination.limit"
+			class="form-select form-select-sm w-auto"
+			:disabled="total == 0"
+			title="Messages per page"
+			@change="changeLimit"
+		>
+			<option v-for="option in limitOptions" :key="option" :value="option">{{ option }} / page</option>
+		</select>
+
+		<button
+			class="btn btn-sm btn-outline-secondary"
+			:disabled="!canNext"
+			:title="'View next ' + pagination.limit + ' messages'"
+			@click="viewNext"
+		>
+			<i class="bi bi-caret-right-fill"></i>
+		</button>
+	</div>
 </template>

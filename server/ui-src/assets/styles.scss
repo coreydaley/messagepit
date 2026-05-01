@@ -11,15 +11,17 @@
 		color: #2d4a5d;
 		transition: all 0.2s;
 
-		img {
-			width: 40px;
+		.bi-funnel-fill {
+			font-size: 1.5rem;
+			color: var(--mp-accent);
+			filter: drop-shadow(0 0 6px rgba(0, 0, 0, 0.3));
 		}
 
 		@include media-breakpoint-down(md) {
 			padding: 0;
 
-			img {
-				width: 35px;
+			.bi-funnel-fill {
+				font-size: 1.25rem;
 			}
 		}
 	}
@@ -431,4 +433,80 @@ pre[class*="language-"] {
 		bottom: 14px;
 		box-shadow: none;
 	}
+}
+
+// ── MessagePit Design System ──────────────────────────────────────────────────
+
+:root {
+	--mp-accent: #2c3e50;
+	--mp-accent-subtle: rgba(44, 62, 80, 0.12);
+}
+
+// Unread indicator — amber left border across all list views
+.list-group-item.message:not(.active):not(.read) {
+	border-left: 3px solid var(--mp-accent);
+	padding-left: calc(var(--bs-list-group-item-padding-x) - 3px);
+}
+
+// Read items — unified de-emphasis
+.list-group-item.message.read:not(.active) {
+	> div {
+		opacity: 0.55;
+	}
+}
+
+// Navbar — subtle depth shadow
+.navbar {
+	box-shadow: 0 1px 5px rgba(0, 0, 0, 0.28);
+}
+
+// Brand name — tighter tracking, medium weight
+.navbar-brand span {
+	letter-spacing: -0.01em;
+	font-weight: 500;
+	opacity: 0.9;
+	transition: opacity 0.2s;
+}
+
+.navbar-brand:hover span {
+	opacity: 1;
+}
+
+// Method badges — slightly bolder, better letter-spacing
+.badge.font-monospace {
+	font-weight: 500;
+	letter-spacing: 0.03em;
+	font-size: 0.7em;
+}
+
+// Thin refined scrollbars for all list panels
+#WebhookList,
+#SMSList,
+#MessageList,
+#webhook-list {
+	scrollbar-width: thin;
+	scrollbar-color: rgba(128, 128, 128, 0.25) transparent;
+
+	&::-webkit-scrollbar {
+		width: 4px;
+	}
+
+	&::-webkit-scrollbar-thumb {
+		background-color: rgba(128, 128, 128, 0.3);
+		border-radius: 2px;
+	}
+
+	&::-webkit-scrollbar-track {
+		background: transparent;
+	}
+}
+
+// List item hover transition
+.list-group-item-action {
+	transition: background-color 0.1s ease;
+}
+
+@include color-mode(dark) {
+	--mp-accent: #5d7a96;
+	--mp-accent-subtle: rgba(93, 122, 150, 0.12);
 }

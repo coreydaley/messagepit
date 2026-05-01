@@ -256,6 +256,93 @@ func TestWebhookDeleteAll(t *testing.T) {
 	assertEqual(t, stats.Unread, uint64(0), "unread after delete all")
 }
 
+func TestSearchWebhooks(t *testing.T) {
+	setup("")
+	defer Close()
+
+	_, _ = StoreWebhook("POST", "/api/orders", "", nil, []byte(`{"item":"book"}`), "application/json", "10.0.0.1")
+	_, _ = StoreWebhook("GET", "/api/health", "status=ok", nil, nil, "", "10.0.0.2")
+	_, _ = StoreWebhook("DELETE", "/api/orders/42", "", nil, nil, "", "192.168.1.5")
+
+	// match on path
+	results, total, err := SearchWebhooks("/api/orders", 0, 10)
+	if err != nil {
+		t.Fatalf("SearchWebhooks by path: %v", err)
+	}
+	assertEqual(t, total, 2, "total matches for '/api/orders'")
+	assertEqual(t, len(results), 2, "returned results for '/api/orders'")
+
+	// match on method
+	results, total, err = SearchWebhooks("DELETE", 0, 10)
+	if err != nil {
+		t.Fatalf("SearchWebhooks by method: %v", err)
+	}
+	assertEqual(t, total, 1, "total matches for DELETE method")
+	assertEqual(t, len(results), 1, "returned results for DELETE method")
+	assertEqual(t, results[0].Method, "DELETE", "method field")
+
+	// match on query string
+	results, total, err = SearchWebhooks("status=ok", 0, 10)
+	if err != nil {
+		t.Fatalf("SearchWebhooks by query: %v", err)
+	}
+	assertEqual(t, total, 1, "total matches for query string")
+	assertEqual(t, results[0].Path, "/api/health", "path for query match")
+
+	// match on source IP
+	results, total, err = SearchWebhooks("192.168", 0, 10)
+	if err != nil {
+		t.Fatalf("SearchWebhooks by IP: %v", err)
+	}
+	assertEqual(t, total, 1, "total matches for IP prefix")
+	assertEqual(t, results[0].SourceIP, "192.168.1.5", "source IP")
+
+	// match on body snippet
+	results, total, err = SearchWebhooks("book", 0, 10)
+	if err != nil {
+		t.Fatalf("SearchWebhooks by snippet: %v", err)
+	}
+	assertEqual(t, total, 1, "total matches for snippet content")
+	assertEqual(t, results[0].Path, "/api/orders", "path for snippet match")
+
+	// no match
+	results, total, err = SearchWebhooks("zzz_nomatch", 0, 10)
+	if err != nil {
+		t.Fatalf("SearchWebhooks no match: %v", err)
+	}
+	assertEqual(t, total, 0, "total for no-match query")
+	assertEqual(t, len(results), 0, "results for no-match query")
+}
+
+func TestSearchWebhooksPagination(t *testing.T) {
+	setup("")
+	defer Close()
+
+	for i := range 10 {
+		path := "/paginate/" + string(rune('a'+i))
+		if _, err := StoreWebhook("POST", path, "", nil, []byte("data"), "text/plain", "127.0.0.1"); err != nil {
+			t.Fatalf("StoreWebhook: %v", err)
+		}
+	}
+
+	page1, total, err := SearchWebhooks("/paginate/", 0, 3)
+	if err != nil {
+		t.Fatalf("SearchWebhooks page1: %v", err)
+	}
+	assertEqual(t, total, 10, "total across pages")
+	assertEqual(t, len(page1), 3, "page 1 count")
+
+	page2, _, err := SearchWebhooks("/paginate/", 3, 3)
+	if err != nil {
+		t.Fatalf("SearchWebhooks page2: %v", err)
+	}
+	assertEqual(t, len(page2), 3, "page 2 count")
+
+	if page1[0].ID == page2[0].ID {
+		t.Fatal("page 1 and page 2 returned the same webhook")
+	}
+}
+
 func TestWebhookHTTPMethods(t *testing.T) {
 	setup("")
 	defer Close()
