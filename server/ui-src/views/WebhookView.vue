@@ -52,9 +52,7 @@ export default {
 
 		fullURL() {
 			if (!this.message) return "";
-			return this.message.Query
-				? this.message.Path + "?" + this.message.Query
-				: this.message.Path;
+			return this.message.Query ? this.message.Path + "?" + this.message.Query : this.message.Path;
 		},
 
 		bodyLanguage() {
@@ -270,7 +268,10 @@ export default {
 				<span class="d-none d-md-inline">Delete</span>
 			</button>
 		</div>
-		<div v-if="!errorMessage" class="col-auto col-lg-4 col-xl-4 d-flex align-items-center justify-content-end gap-1">
+		<div
+			v-if="!errorMessage"
+			class="col-auto col-lg-4 col-xl-4 d-flex align-items-center justify-content-end gap-1"
+		>
 			<RouterLink
 				:to="previousID ? '/webhooks/view/' + previousID : '/webhooks'"
 				class="btn btn-outline-light ms-1 ms-sm-2 me-1"
@@ -322,7 +323,9 @@ export default {
 								<span class="badge font-monospace flex-shrink-0" :class="methodBadgeClass(msg.Method)">
 									{{ msg.Method }}
 								</span>
-								<span class="text-truncate flex-grow-1" :class="msg.Read ? '' : 'fw-semibold'">{{ msg.Path }}</span>
+								<span class="text-truncate flex-grow-1" :class="msg.Read ? '' : 'fw-semibold'">{{
+									msg.Path
+								}}</span>
 							</div>
 							<div class="col-12 d-flex justify-content-between mt-1">
 								<span class="text-truncate opacity-75">{{ msg.SourceIP }}</span>
@@ -332,8 +335,6 @@ export default {
 					</div>
 				</template>
 			</div>
-
-
 		</div>
 
 		<div class="col-xl-9 mh-100 ps-0 ps-md-2 pe-0">
@@ -345,7 +346,9 @@ export default {
 					<div class="p-3 p-md-4">
 						<!-- Method + path title -->
 						<h5 class="mb-3 font-monospace d-flex align-items-baseline gap-2 flex-wrap">
-							<span class="badge fs-6" :class="methodBadgeClass(message.Method)">{{ message.Method }}</span>
+							<span class="badge fs-6" :class="methodBadgeClass(message.Method)">{{
+								message.Method
+							}}</span>
 							<span class="text-break">{{ fullURL }}</span>
 						</h5>
 
@@ -377,7 +380,10 @@ export default {
 							<table class="table table-sm table-borderless small mb-3">
 								<tbody>
 									<tr v-for="p in queryParams" :key="p.name">
-										<th class="text-muted fw-normal font-monospace" style="width: 40%; word-break: break-all">
+										<th
+											class="text-muted fw-normal font-monospace"
+											style="width: 40%; word-break: break-all"
+										>
 											{{ p.name }}
 										</th>
 										<td class="font-monospace" style="word-break: break-all">{{ p.value }}</td>
@@ -393,7 +399,10 @@ export default {
 								<table class="table table-sm small mb-0">
 									<tbody>
 										<tr v-for="h in sortedHeaders" :key="h.name">
-											<td class="text-muted font-monospace" style="width: 40%; word-break: break-all">
+											<td
+												class="text-muted font-monospace"
+												style="width: 40%; word-break: break-all"
+											>
 												{{ h.name }}
 											</td>
 											<td class="font-monospace" style="word-break: break-all">{{ h.value }}</td>
@@ -410,8 +419,14 @@ export default {
 								<div class="card-body p-0">
 									<pre
 										class="mb-0 p-3 small"
-										style="white-space: pre-wrap; word-break: break-all; max-height: 40rem; overflow-y: auto"
-									>{{ prettyBody }}</pre>
+										style="
+											white-space: pre-wrap;
+											word-break: break-all;
+											max-height: 40rem;
+											overflow-y: auto;
+										"
+										>{{ prettyBody }}</pre
+									>
 								</div>
 							</div>
 						</template>

@@ -1,176 +1,121 @@
-<script>
-import About from "../components/AppAbout.vue";
-import AjaxLoader from "../components/AjaxLoader.vue";
-import CommonMixins from "../mixins/CommonMixins";
+<script setup>
+import AppLayout from "../components/AppLayout.vue";
 import ListMessages from "../components/ListMessages.vue";
 import Pagination from "../components/NavPagination.vue";
-import { mailbox } from "../stores/mailbox";
+import { useCommon } from "../composables/useCommon";
 import { pagination } from "../stores/pagination";
 import { smsStore } from "../stores/sms";
-import { webhooksStore } from "../stores/webhooks";
+import { computed, inject, onMounted, onUnmounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 
-export default {
-	components: {
-		About,
-		AjaxLoader,
-		ListMessages,
-		Pagination,
-	},
+const route = useRoute();
+const router = useRouter();
+const eventBus = inject("eventBus");
 
-	mixins: [CommonMixins],
+const { loading, resolve, formatNumber, get, put, del, getPaginationParams } = useCommon();
 
-	inject: ["eventBus"],
+const search = ref("");
 
-	data() {
-		return {
-			mailbox,
-			pagination,
-			smsStore,
-			webhooksStore,
-			search: "",
-		};
-	},
+const normalizedMessages = computed(() =>
+	(smsStore.messages || []).map((msg) => ({
+		ID: msg.ID,
+		Read: msg.Read,
+		Created: msg.Created,
+		From: { Name: "", Address: msg.From },
+		To: [{ Address: msg.To, Name: "" }],
+		Subject: msg.Body || "[ no message ]",
+		Snippet: "",
+		Tags: [],
+		Attachments: 0,
+		Size: msg.Body ? msg.Body.length : 0,
+	})),
+);
 
-	computed: {
-		normalizedMessages() {
-			return (smsStore.messages || []).map((msg) => ({
-				ID: msg.ID,
-				Read: msg.Read,
-				Created: msg.Created,
-				From: { Name: "", Address: msg.From },
-				To: [{ Address: msg.To, Name: "" }],
-				Subject: msg.Body || "[ no message ]",
-				Snippet: "",
-				Tags: [],
-				Attachments: 0,
-				Size: msg.Body ? msg.Body.length : 0,
-			}));
-		},
-	},
+function loadSMS() {
+	const p = getPaginationParams();
+	if (p?.start) {
+		pagination.start = p.start;
+	} else {
+		pagination.start = 0;
+	}
+	if (p?.limit) {
+		pagination.limit = p.limit;
+	}
+	get(resolve("/api/v1/sms/messages"), { start: pagination.start, limit: pagination.limit }, (response) => {
+		smsStore.total = response.data.total;
+		smsStore.unread = response.data.unread;
+		smsStore.messages = response.data.messages;
+		pagination.start = response.data.start;
+	});
+}
 
-	watch: {
-		$route() {
-			this.loadSMS();
-		},
-	},
+function markAllRead() {
+	for (const msg of smsStore.messages) {
+		if (!msg.Read) {
+			put(resolve(`/api/v1/sms/message/${msg.ID}/read`), {}, () => {});
+			msg.Read = true;
+		}
+	}
+	smsStore.unread = 0;
+}
 
-	mounted() {
-		this.loadSMS();
-		this.eventBus.on("sms", this.handleWSNew);
-		this.eventBus.on("sms_delete", this.handleWSDelete);
-		this.eventBus.on("sms_truncate", this.handleWSTruncate);
-	},
+function deleteAll() {
+	del(resolve("/api/v1/sms/messages"), {}, () => {
+		smsStore.messages = [];
+		smsStore.total = 0;
+		smsStore.unread = 0;
+		pagination.start = 0;
+	});
+}
 
-	unmounted() {
-		this.eventBus.off("sms", this.handleWSNew);
-		this.eventBus.off("sms_delete", this.handleWSDelete);
-		this.eventBus.off("sms_truncate", this.handleWSTruncate);
-	},
+function handleWSNew(data) {
+	if (pagination.start === 0) {
+		smsStore.messages.unshift(data);
+	}
+}
 
-	methods: {
-		loadSMS() {
-			const p = this.getPaginationParams();
-			if (p?.start) {
-				pagination.start = p.start;
-			} else {
-				pagination.start = 0;
-			}
-			if (p?.limit) {
-				pagination.limit = p.limit;
-			}
+function handleWSDelete(id) {
+	smsStore.messages = smsStore.messages.filter((m) => m.ID !== id);
+}
 
-			this.get(
-				this.resolve("/api/v1/sms/messages"),
-				{ start: pagination.start, limit: pagination.limit },
-				(response) => {
-					smsStore.total = response.data.total;
-					smsStore.unread = response.data.unread;
-					smsStore.messages = response.data.messages;
-					pagination.start = response.data.start;
-				},
-			);
-		},
+function handleWSTruncate() {
+	pagination.start = 0;
+	loadSMS();
+}
 
-		markAllRead() {
-			for (const msg of smsStore.messages) {
-				if (!msg.Read) {
-					this.put(this.resolve(`/api/v1/sms/message/${msg.ID}/read`), {}, () => {});
-					msg.Read = true;
-				}
-			}
-			smsStore.unread = 0;
-		},
+function submitSearch(e) {
+	e.preventDefault();
+	if (search.value.trim()) {
+		router.push("/sms/search?q=" + encodeURIComponent(search.value.trim()));
+	}
+}
 
-		deleteAll() {
-			this.delete(this.resolve("/api/v1/sms/messages"), {}, () => {
-				smsStore.messages = [];
-				smsStore.total = 0;
-				smsStore.unread = 0;
-				pagination.start = 0;
-			});
-		},
+function resetSearch() {
+	search.value = "";
+}
 
-		handleWSNew(data) {
-			if (pagination.start === 0) {
-				smsStore.messages.unshift(data);
-			}
-		},
+watch(
+	() => route.fullPath,
+	() => loadSMS(),
+);
 
-		handleWSDelete(id) {
-			smsStore.messages = smsStore.messages.filter((m) => m.ID !== id);
-		},
+onMounted(() => {
+	loadSMS();
+	eventBus.on("sms", handleWSNew);
+	eventBus.on("sms_delete", handleWSDelete);
+	eventBus.on("sms_truncate", handleWSTruncate);
+});
 
-		handleWSTruncate() {
-			pagination.start = 0;
-			this.loadSMS();
-		},
-
-		submitSearch(e) {
-			e.preventDefault();
-			if (this.search.trim()) {
-				this.$router.push("/sms/search?q=" + encodeURIComponent(this.search.trim()));
-			}
-		},
-
-		resetSearch() {
-			this.search = "";
-		},
-	},
-};
+onUnmounted(() => {
+	eventBus.off("sms", handleWSNew);
+	eventBus.off("sms_delete", handleWSDelete);
+	eventBus.off("sms_truncate", handleWSTruncate);
+});
 </script>
 
 <template>
-	<div class="navbar navbar-expand-lg row flex-shrink-0 bg-primary text-white d-print-none" data-bs-theme="dark">
-		<div class="col-xl-2 col-md-3 col-auto pe-0">
-			<RouterLink to="/" class="navbar-brand text-white me-0">
-				<i class="bi bi-funnel-fill"></i>
-				<span class="ms-2 d-none d-sm-inline">MessagePit</span>
-			</RouterLink>
-		</div>
-		<div class="col col-md-4 col-lg-5 col-xl-6 d-flex align-items-center gap-3">
-			<div class="nav nav-pills flex-shrink-0">
-				<RouterLink to="/" class="nav-link text-white opacity-75 px-3">
-					<i class="bi bi-envelope-fill me-1"></i>
-					Email
-					<span v-if="mailbox.unread" class="badge rounded-pill ms-1 bg-white text-dark">
-						{{ formatNumber(mailbox.unread) }}
-					</span>
-				</RouterLink>
-				<RouterLink to="/sms" class="nav-link text-white px-3 active bg-white bg-opacity-25">
-					<i class="bi bi-chat-fill me-1"></i>
-					SMS
-					<span v-if="smsStore.unread" class="badge rounded-pill ms-1 bg-white text-dark">
-						{{ formatNumber(smsStore.unread) }}
-					</span>
-				</RouterLink>
-				<RouterLink to="/webhooks" class="nav-link text-white opacity-75 px-3">
-					<i class="bi bi-arrow-left-right me-1"></i>
-					Webhooks
-					<span v-if="webhooksStore.unread" class="badge rounded-pill ms-1 bg-white text-dark">
-						{{ formatNumber(webhooksStore.unread) }}
-					</span>
-				</RouterLink>
-			</div>
+	<AppLayout active-tab="sms" offcanvas-id="smsOffcanvas" offcanvas-title="SMS" :loading="loading">
+		<template #search>
 			<form class="flex-fill" @submit="submitSearch">
 				<div class="input-group flex-nowrap">
 					<div class="ms-md-2 d-flex border bg-body rounded-start flex-fill position-relative">
@@ -181,7 +126,11 @@ export default {
 							aria-label="Search SMS"
 							placeholder="Search messages"
 						/>
-						<span v-if="search" class="btn btn-link position-absolute end-0 text-muted" @click="resetSearch">
+						<span
+							v-if="search"
+							class="btn btn-link position-absolute end-0 text-muted"
+							@click="resetSearch"
+						>
 							<i class="bi bi-x-circle"></i>
 						</span>
 					</div>
@@ -190,129 +139,50 @@ export default {
 					</button>
 				</div>
 			</form>
-		</div>
-		<div class="col-12 col-md-auto col-lg-4 col-xl-4 d-flex align-items-center justify-content-end mt-2 mt-md-0">
-			<div class="me-auto d-md-none">
+		</template>
+
+		<template #sidebar>
+			<div class="list-group my-2">
+				<button class="list-group-item list-group-item-action active" disabled>
+					<i class="bi bi-chat-fill me-1"></i>
+					SMS
+					<span v-if="smsStore.unread" class="badge rounded-pill ms-1 float-end text-bg-secondary">
+						{{ formatNumber(smsStore.unread) }}
+					</span>
+				</button>
 				<button
-					class="btn btn-outline-light me-2"
-					type="button"
-					data-bs-toggle="offcanvas"
-					data-bs-target="#smsOffcanvas"
-					aria-controls="smsOffcanvas"
+					class="list-group-item list-group-item-action"
+					:disabled="!smsStore.unread"
+					@click="markAllRead"
 				>
-					<i class="bi bi-list"></i>
+					<i class="bi bi-eye-fill me-1"></i>
+					Mark all read
+				</button>
+				<button class="list-group-item list-group-item-action" :disabled="!smsStore.total" @click="deleteAll">
+					<i class="bi bi-trash-fill me-1 text-danger"></i>
+					Delete all
 				</button>
 			</div>
-			<About navbar />
-		</div>
-	</div>
-
-	<div
-		id="smsOffcanvas"
-		class="offcanvas-md offcanvas-start d-md-none"
-		data-bs-scroll="true"
-		tabindex="-1"
-		aria-labelledby="smsOffcanvasLabel"
-	>
-		<div class="offcanvas-header">
-			<h5 id="smsOffcanvasLabel" class="offcanvas-title">SMS</h5>
-			<button
-				type="button"
-				class="btn-close"
-				data-bs-dismiss="offcanvas"
-				data-bs-target="#smsOffcanvas"
-				aria-label="Close"
-			></button>
-		</div>
-		<div class="offcanvas-body pb-0">
-			<div class="d-flex flex-column h-100">
-				<div class="flex-grow-1 overflow-y-auto me-n3 pe-3">
-					<div class="list-group my-2">
-						<button class="list-group-item list-group-item-action active" disabled>
-							<i class="bi bi-chat-fill me-1"></i>
-							SMS
-							<span v-if="smsStore.unread" class="badge rounded-pill ms-1 float-end text-bg-secondary">
-								{{ formatNumber(smsStore.unread) }}
-							</span>
-						</button>
-						<button
-							class="list-group-item list-group-item-action"
-							:disabled="!smsStore.unread"
-							@click="markAllRead"
-						>
-							<i class="bi bi-eye-fill me-1"></i>
-							Mark all read
-						</button>
-						<button
-							class="list-group-item list-group-item-action"
-							:disabled="!smsStore.total"
-							@click="deleteAll"
-						>
-							<i class="bi bi-trash-fill me-1 text-danger"></i>
-							Delete all
-						</button>
-					</div>
-					<div v-if="smsStore.total" class="small text-muted mt-2 px-1">
-						<div class="d-flex justify-content-between border-top pt-2 pb-1">
-							<span>Total SMS</span>
-							<strong class="text-body">{{ formatNumber(smsStore.total) }}</strong>
-						</div>
-						<div class="d-flex justify-content-between pb-1">
-							<span>Unread</span>
-							<strong class="text-body">{{ formatNumber(smsStore.unread) }}</strong>
-						</div>
-					</div>
+			<div v-if="smsStore.total" class="small text-muted mt-2 px-1">
+				<div class="d-flex justify-content-between border-top pt-2 pb-1">
+					<span>Total SMS</span>
+					<strong class="text-body">{{ formatNumber(smsStore.total) }}</strong>
 				</div>
-
-			</div>
-		</div>
-	</div>
-
-	<div class="row flex-fill" style="min-height: 0">
-		<div class="d-none d-md-flex h-100 col-xl-2 col-md-3 flex-column">
-			<div class="flex-grow-1 overflow-y-auto me-n3 pe-3">
-				<div class="list-group my-2">
-					<button class="list-group-item list-group-item-action active" disabled>
-						<i class="bi bi-chat-fill me-1"></i>
-						SMS
-						<span v-if="smsStore.unread" class="badge rounded-pill ms-1 float-end text-bg-secondary">
-							{{ formatNumber(smsStore.unread) }}
-						</span>
-					</button>
-					<button
-						class="list-group-item list-group-item-action"
-						:disabled="!smsStore.unread"
-						@click="markAllRead"
-					>
-						<i class="bi bi-eye-fill me-1"></i>
-						Mark all read
-					</button>
-					<button
-						class="list-group-item list-group-item-action"
-						:disabled="!smsStore.total"
-						@click="deleteAll"
-					>
-						<i class="bi bi-trash-fill me-1 text-danger"></i>
-						Delete all
-					</button>
+				<div class="d-flex justify-content-between pb-1">
+					<span>Unread</span>
+					<strong class="text-body">{{ formatNumber(smsStore.unread) }}</strong>
 				</div>
 			</div>
+		</template>
 
+		<div id="message-page" class="flex-grow-1 overflow-y-auto">
+			<ListMessages
+				:loading-messages="loading"
+				:messages="normalizedMessages"
+				route-base="/sms/view/"
+				empty-text="No SMS messages"
+			/>
 		</div>
-
-		<div class="col-xl-10 col-md-9 d-flex flex-column mh-100 ps-0 ps-md-2 pe-0">
-			<div id="message-page" class="flex-grow-1 overflow-y-auto">
-				<ListMessages
-					:loading-messages="loading"
-					:messages="normalizedMessages"
-					route-base="/sms/view/"
-					empty-text="No SMS messages"
-				/>
-			</div>
-			<Pagination :total="smsStore.total" :count="smsStore.messages.length" />
-		</div>
-	</div>
-
-	<About modals />
-	<AjaxLoader :loading="loading" />
+		<Pagination :total="smsStore.total" :count="smsStore.messages.length" />
+	</AppLayout>
 </template>

@@ -1,201 +1,114 @@
-<script>
-import About from "../components/AppAbout.vue";
-import AjaxLoader from "../components/AjaxLoader.vue";
-import CommonMixins from "../mixins/CommonMixins";
+<script setup>
+import AppLayout from "../components/AppLayout.vue";
 import ListMessages from "../components/ListMessages.vue";
-import MessagesMixins from "../mixins/MessagesMixins";
 import NavSearch from "../components/NavSearch.vue";
 import NavTags from "../components/NavTags.vue";
 import Pagination from "../components/NavPagination.vue";
 import SearchForm from "../components/SearchForm.vue";
+import { useMessages } from "../composables/useMessages";
 import { mailbox } from "../stores/mailbox";
 import { pagination } from "../stores/pagination";
+import { inject, onMounted, onUnmounted, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 
-export default {
-	components: {
-		About,
-		AjaxLoader,
-		ListMessages,
-		NavSearch,
-		NavTags,
-		Pagination,
-		SearchForm,
-	},
+const route = useRoute();
+const router = useRouter();
+const eventBus = inject("eventBus");
 
-	mixins: [CommonMixins, MessagesMixins],
+const { loading, resolve, getSearch, apiURI, loadMessages } = useMessages();
 
-	// global event bus to handle message status changes
-	inject: ["eventBus"],
+let delayedRefresh = false;
 
-	data() {
-		return {
-			mailbox,
-			pagination,
-			delayedRefresh: false,
-		};
-	},
+function doSearch() {
+	const s = getSearch();
+	if (!s) {
+		mailbox.searching = false;
+		router.push("/");
+		return;
+	}
 
-	watch: {
-		$route() {
-			this.doSearch();
-		},
-	},
+	mailbox.searching = s;
+	apiURI.value = resolve("/api/v1/search") + "?query=" + encodeURIComponent(s);
+	if (mailbox.timeZone !== "" && (s.indexOf("after:") !== -1 || s.indexOf("before:") !== -1)) {
+		apiURI.value += "&tz=" + encodeURIComponent(mailbox.timeZone);
+	}
+	loadMessages();
+}
 
-	mounted() {
-		mailbox.searching = this.getSearch();
-		this.doSearch();
+function handleWSUpdate(data) {
+	for (let x = 0; x < mailbox.messages.length; x++) {
+		if (mailbox.messages[x].ID === data.ID) {
+			mailbox.messages[x] = { ...mailbox.messages[x], ...data };
+			return;
+		}
+	}
+}
 
-		// subscribe to events
-		this.eventBus.on("update", this.handleWSUpdate);
-		this.eventBus.on("delete", this.handleWSDelete);
-		this.eventBus.on("truncate", this.handleWSTruncate);
-	},
+function handleWSDelete(data) {
+	let removed = 0;
+	for (let x = 0; x < mailbox.messages.length; x++) {
+		if (mailbox.messages[x].ID === data.ID) {
+			mailbox.messages.splice(x, 1);
+			removed++;
+			continue;
+		}
+	}
+	if (!removed || delayedRefresh) return;
+	delayedRefresh = true;
+	window.setTimeout(() => {
+		delayedRefresh = false;
+		loadMessages();
+	}, 500);
+}
 
-	unmounted() {
-		// unsubscribe from events
-		this.eventBus.off("update", this.handleWSUpdate);
-		this.eventBus.off("delete", this.handleWSDelete);
-		this.eventBus.off("truncate", this.handleWSTruncate);
-	},
+function handleWSTruncate() {
+	router.push("/");
+}
 
-	methods: {
-		doSearch() {
-			const s = this.getSearch();
+watch(
+	() => route.fullPath,
+	() => doSearch(),
+);
 
-			if (!s) {
-				mailbox.searching = false;
-				this.$router.push("/");
-				return;
-			}
+onMounted(() => {
+	mailbox.searching = getSearch();
+	doSearch();
+	eventBus.on("update", handleWSUpdate);
+	eventBus.on("delete", handleWSDelete);
+	eventBus.on("truncate", handleWSTruncate);
+});
 
-			mailbox.searching = s;
-
-			this.apiURI = this.resolve(`/api/v1/search`) + "?query=" + encodeURIComponent(s);
-			if (mailbox.timeZone !== "" && (s.indexOf("after:") !== -1 || s.indexOf("before:") !== -1)) {
-				this.apiURI += "&tz=" + encodeURIComponent(mailbox.timeZone);
-			}
-			this.loadMessages();
-		},
-
-		// handler for websocket message updates
-		handleWSUpdate(data) {
-			for (let x = 0; x < this.mailbox.messages.length; x++) {
-				if (this.mailbox.messages[x].ID === data.ID) {
-					// update message
-					this.mailbox.messages[x] = { ...this.mailbox.messages[x], ...data };
-					return;
-				}
-			}
-		},
-
-		// handler for websocket message deletion
-		handleWSDelete(data) {
-			let removed = 0;
-			for (let x = 0; x < this.mailbox.messages.length; x++) {
-				if (this.mailbox.messages[x].ID === data.ID) {
-					// remove message from the list
-					this.mailbox.messages.splice(x, 1);
-					removed++;
-					continue;
-				}
-			}
-
-			if (!removed || this.delayedRefresh) {
-				// nothing changed on this screen, or a refresh is queued, don't refresh
-				return;
-			}
-
-			// delayedRefresh prevents unnecessary reloads when multiple messages are deleted
-			this.delayedRefresh = true;
-
-			window.setTimeout(() => {
-				this.delayedRefresh = false;
-				this.loadMessages();
-			}, 500);
-		},
-
-		// handler for websocket message truncation
-		handleWSTruncate() {
-			// all messages deleted, go back to inbox
-			this.$router.push("/");
-		},
-	},
-};
+onUnmounted(() => {
+	eventBus.off("update", handleWSUpdate);
+	eventBus.off("delete", handleWSDelete);
+	eventBus.off("truncate", handleWSTruncate);
+});
 </script>
 
 <template>
-	<div class="navbar navbar-expand-lg row flex-shrink-0 bg-primary text-white d-print-none" data-bs-theme="dark">
-		<div class="col-xl-2 col-md-3 col-auto pe-0">
-			<RouterLink to="/" class="navbar-brand text-white me-0" @click="pagination.start = 0">
-				<i class="bi bi-funnel-fill"></i>
-				<span class="ms-2 d-none d-sm-inline">MessagePit</span>
-			</RouterLink>
-		</div>
-		<div class="col col-md-4k col-lg-5 col-xl-6">
-			<SearchForm @load-messages="loadMessages" />
-		</div>
-		<div class="col-12 col-md-auto col-lg-4 col-xl-4 text-end mt-2 mt-lg-0">
-			<div class="me-auto d-md-none">
-				<button
-					class="btn btn-outline-light me-2"
-					type="button"
-					data-bs-toggle="offcanvas"
-					data-bs-target="#offcanvas"
-					aria-controls="offcanvas"
-				>
-					<i class="bi bi-list"></i>
-				</button>
-			</div>
-			<About navbar />
-		</div>
-	</div>
-
-	<div
-		id="offcanvas"
-		class="offcanvas-md offcanvas-start d-md-none"
-		data-bs-scroll="true"
-		tabindex="-1"
-		aria-labelledby="offcanvasLabel"
+	<AppLayout
+		active-tab=""
+		offcanvas-id="offcanvas"
+		offcanvas-title="MessagePit"
+		:loading="loading"
+		@brand-click="pagination.start = 0"
 	>
-		<div class="offcanvas-header">
-			<h5 id="offcanvasLabel" class="offcanvas-title">MessagePit</h5>
-			<button
-				type="button"
-				class="btn-close"
-				data-bs-dismiss="offcanvas"
-				data-bs-target="#offcanvas"
-				aria-label="Close"
-			></button>
+		<template #search>
+			<SearchForm @load-messages="loadMessages" />
+		</template>
+
+		<template #sidebar>
+			<NavSearch @load-messages="loadMessages" />
+			<NavTags />
+		</template>
+
+		<template #modals>
+			<NavSearch modals @load-messages="loadMessages" />
+		</template>
+
+		<div id="message-page" class="flex-grow-1 overflow-y-auto">
+			<ListMessages :loading-messages="loading" />
 		</div>
-		<div class="offcanvas-body pb-0">
-			<div class="d-flex flex-column h-100">
-				<div class="flex-grow-1 overflow-y-auto me-n3 pe-3">
-					<NavSearch @load-messages="loadMessages" />
-					<NavTags />
-				</div>
-
-			</div>
-		</div>
-	</div>
-
-	<div class="row flex-fill" style="min-height: 0">
-		<div class="d-none d-md-flex h-100 col-xl-2 col-md-3 flex-column">
-			<div class="flex-grow-1 overflow-y-auto me-n3 pe-3">
-				<NavSearch @load-messages="loadMessages" />
-				<NavTags />
-			</div>
-
-		</div>
-
-		<div class="col-xl-10 col-md-9 d-flex flex-column mh-100 ps-0 ps-md-2 pe-0">
-			<div id="message-page" class="flex-grow-1 overflow-y-auto">
-				<ListMessages :loading-messages="loading" />
-			</div>
-			<Pagination :total="mailbox.count" />
-		</div>
-	</div>
-
-	<NavSearch modals @load-messages="loadMessages" />
-	<About modals />
-	<AjaxLoader :loading="loading" />
+		<Pagination :total="mailbox.count" />
+	</AppLayout>
 </template>

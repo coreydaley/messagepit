@@ -506,7 +506,10 @@ export default {
 				<span class="d-none d-md-inline">Delete</span>
 			</button>
 		</div>
-		<div v-if="!errorMessage" class="col-auto col-lg-4 col-xl-4 d-flex align-items-center justify-content-end gap-1">
+		<div
+			v-if="!errorMessage"
+			class="col-auto col-lg-4 col-xl-4 d-flex align-items-center justify-content-end gap-1"
+		>
 			<div id="DownloadBtn" class="dropdown d-inline-block">
 				<button
 					type="button"
@@ -702,8 +705,6 @@ export default {
 					</div>
 				</template>
 			</div>
-
-
 		</div>
 
 		<div class="col-xl-9 mh-100 ps-0 ps-md-2 pe-0">
