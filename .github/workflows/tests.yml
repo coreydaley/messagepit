@@ -15,17 +15,7 @@ jobs:
     - uses: actions/setup-go@v6
       with:
         go-version: ${{ matrix.go-version }}
-        cache: false
     - uses: actions/checkout@v6
-    - name: Set up Go environment
-      uses: actions/cache@v5
-      with:
-        path: |
-          ~/.cache/go-build
-          ~/go
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
     - name: Test Go linting (gofmt)
       if: startsWith(matrix.os, 'ubuntu') == true
       run: gofmt -s -w . && git diff --exit-code
