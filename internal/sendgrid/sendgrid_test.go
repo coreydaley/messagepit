@@ -26,6 +26,20 @@ func setup() {
 	}
 }
 
+func assertJSONError(t *testing.T, rr *httptest.ResponseRecorder) {
+	t.Helper()
+	if ct := rr.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("expected Content-Type application/json, got %q", ct)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatalf("response body is not valid JSON: %v\nbody: %s", err, rr.Body.String())
+	}
+	if _, ok := body["error"]; !ok {
+		t.Errorf("expected 'error' key in JSON response body, got: %v", body)
+	}
+}
+
 func makeRequest(t *testing.T, body string, authHeader string) *httptest.ResponseRecorder {
 	t.Helper()
 
@@ -89,6 +103,7 @@ func TestCreateMessage_MalformedJSON_Returns400(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rr.Code)
 	}
+	assertJSONError(t, rr)
 }
 
 func TestCreateMessage_MissingFrom_Returns400(t *testing.T) {
@@ -135,6 +150,7 @@ func TestCreateMessage_InvalidAuth_Returns401(t *testing.T) {
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", rr.Code)
 	}
+	assertJSONError(t, rr)
 }
 
 func TestCreateMessage_MalformedAuthHeader_Returns401(t *testing.T) {
@@ -149,6 +165,7 @@ func TestCreateMessage_MalformedAuthHeader_Returns401(t *testing.T) {
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 for malformed auth header, got %d", rr.Code)
 	}
+	assertJSONError(t, rr)
 }
 
 func TestCreateMessage_NoAuthWhenKeyEmpty_Returns202(t *testing.T) {
@@ -213,7 +230,7 @@ func TestCreateMessage_CCAddresses_AppearsInMIME(t *testing.T) {
 		"personalizations": []map[string]any{
 			{
 				"to": []map[string]string{{"email": "to@example.com"}},
-				"cc": []map[string]string{{"email": "cc@example.com", "name": "CC Person"}},
+				"cc": []map[string]string{{"email": "cc@example.com", "name": "Rémi CC"}},
 			},
 		},
 	})
@@ -237,6 +254,14 @@ func TestCreateMessage_CCAddresses_AppearsInMIME(t *testing.T) {
 	}
 	if msg.Cc[0].Address != "cc@example.com" {
 		t.Errorf("expected cc@example.com, got %q", msg.Cc[0].Address)
+	}
+
+	raw, err := storage.GetMessageRaw(msgs[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "=?utf-8?") {
+		t.Errorf("expected Q-encoded display name in Cc header, got:\n%s", string(raw))
 	}
 }
 
@@ -395,4 +420,75 @@ func TestCreateMessage_MultiContent_MultipartAlternative(t *testing.T) {
 		t.Error("boundary delimiter not found in MIME body")
 	}
 	_ = multipart.NewReader(strings.NewReader(rawStr), boundary)
+}
+
+func TestCreateMessage_BodyTooLarge_Returns413(t *testing.T) {
+	setup()
+	defer storage.Close()
+
+	// Build a body just over the 10 MiB limit.
+	large := make([]byte, 10<<20+1)
+	req := httptest.NewRequest(http.MethodPost, "/v3/mail/send", strings.NewReader(string(large)))
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/v3/mail/send", CreateMessage).Methods("POST")
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected 413 for oversized body, got %d", rr.Code)
+	}
+	assertJSONError(t, rr)
+}
+
+func TestCreateMessage_InvalidFromAddress_Returns400(t *testing.T) {
+	setup()
+	defer storage.Close()
+
+	payload := `{"from":{"email":"not-an-email"},"subject":"Test","personalizations":[{"to":[{"email":"r@example.com"}]}]}`
+	rr := makeRequest(t, payload, "")
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid from address, got %d", rr.Code)
+	}
+	assertJSONError(t, rr)
+}
+
+func TestCreateMessage_HeaderInjection_Sanitized(t *testing.T) {
+	setup()
+	defer storage.Close()
+
+	payload := validPayload(t, map[string]any{
+		"headers": map[string]string{"X-Injected": "val\r\nX-Extra: injected"},
+	})
+	rr := makeRequest(t, payload, "")
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d", rr.Code)
+	}
+
+	msgs := listMessages(t)
+	if len(msgs) == 0 {
+		t.Fatal("no messages stored")
+	}
+	raw, err := storage.GetMessageRaw(msgs[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "\nX-Extra: injected") {
+		t.Error("header injection via CR/LF must be stripped")
+	}
+}
+
+func TestCreateMessage_ConstantTimeAuth_RejectsPartialKey(t *testing.T) {
+	setup()
+	defer storage.Close()
+
+	config.SendGridAPIKey = "full-secret-key"
+	defer func() { config.SendGridAPIKey = "" }()
+
+	// Send only a prefix of the real key — must be rejected.
+	rr := makeRequest(t, validPayload(t, nil), "Bearer full-secret")
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for partial key, got %d", rr.Code)
+	}
 }

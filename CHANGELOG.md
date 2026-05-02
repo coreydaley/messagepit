@@ -4,6 +4,28 @@
 
 Notable MessagePit changes are listed here. Changes inherited from Mailpit upstream are documented in the [Mailpit section](#mailpit) below.
 
+### [Unreleased]
+
+#### BREAKING CHANGES
+- **`--sms` flag renamed to `--twilio`** — update any scripts or automation that pass `--sms <addr>`
+- **`--sms-auth-token` renamed to `--twilio-auth-token`**
+- **`--sms-webhook-url` renamed to `--twilio-webhook-url`**
+- **`MP_SMS_BIND_ADDR` renamed to `MP_TWILIO_BIND_ADDR`** — MessagePit exits non-zero if the old env var is detected
+- **`MP_SMS_AUTH_TOKEN` renamed to `MP_TWILIO_AUTH_TOKEN`** — MessagePit exits non-zero if the old env var is detected
+- **`MP_SMS_WEBHOOK_URL` renamed to `MP_TWILIO_WEBHOOK_URL`** — MessagePit exits non-zero if the old env var is detected
+
+#### Feature
+- Add Mailtrap Email Sending API stub (`POST /api/send`, port 8027) — point Mailtrap SDK clients at `http://localhost:8027` for local development
+- Add `--mailtrap` flag and `MP_MAILTRAP_BIND_ADDR` env var to configure the Mailtrap listener address (defaults to `127.0.0.1:8027`)
+- Add `--mailtrap-api-key` flag and `MP_MAILTRAP_API_KEY` env var for Bearer token authentication on the Mailtrap stub
+
+#### Security
+- Add 10 MiB body-size cap to Mailtrap and SendGrid handlers (prevents request body DoS)
+- Use constant-time comparison for Bearer token validation in Mailtrap and SendGrid handlers
+- Validate all email addresses in Mailtrap handler; validate `from` address in SendGrid handler
+- Sanitize CR/LF in custom header values (Mailtrap and SendGrid) to prevent header injection
+- Drop reserved MIME headers (Content-Type, From, To, Cc, Bcc, Subject, Date, MIME-Version) from user-supplied Mailtrap `headers` map
+
 ### [MessagePit v1.2.1]
 
 #### Chore

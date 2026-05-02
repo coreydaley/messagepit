@@ -41,12 +41,12 @@ var (
 	// SMTPListen to listen on <interface>:<port>
 	SMTPListen = "[::]:1025"
 
-	// SMSListen is the bind address for the SMS ingest server.
-	SMSListen = "[::]:1775"
+	// TwilioListen is the bind address for the Twilio SMS ingest server.
+	TwilioListen = "[::]:8200"
 
 	// WebhookCaptureListen is the bind address for the HTTP webhook capture server.
 	// When empty, the webhook capture server is disabled.
-	WebhookCaptureListen = "[::]:8026"
+	WebhookCaptureListen = "[::]:8300"
 
 	// HTTPListen to listen on <interface>:<port>
 	HTTPListen = "[::]:8025"
@@ -216,6 +216,10 @@ var (
 	// POP3TLSKey TLS certificate key
 	POP3TLSKey string
 
+	// SendGridListen is the bind address for the SendGrid v3 Mail Send API stub.
+	// When empty, the SendGrid server is disabled.
+	SendGridListen = "127.0.0.1:8101"
+
 	// SendGridAPIKey is the expected Bearer token for the SendGrid v3 /v3/mail/send endpoint.
 	// When empty, authentication is skipped (suitable for local development without auth).
 	SendGridAPIKey string
@@ -234,9 +238,17 @@ var (
 	// WebhookURL for calling
 	WebhookURL string
 
-	// SMSWebhookURL is the URL to POST Twilio-style status callbacks after capturing an SMS.
+	// TwilioWebhookURL is the URL to POST Twilio-style status callbacks after capturing an SMS.
 	// When set, MessagePit fires a delivery callback signed with TwilioAuthToken (if set).
-	SMSWebhookURL string
+	TwilioWebhookURL string
+
+	// MailtrapListen is the bind address for the Mailtrap Email Sending API stub.
+	// When empty, the Mailtrap server is disabled.
+	MailtrapListen = "127.0.0.1:8100"
+
+	// MailtrapAPIKey is the expected Bearer token for POST /api/send.
+	// When empty, authentication is skipped.
+	MailtrapAPIKey string
 
 	// EmailWebhookURL is the URL to POST SendGrid-style event webhooks after capturing an email.
 	// When set, MessagePit fires a "delivered" event signed with the ECDSA key.
@@ -364,9 +376,19 @@ func VerifyConfig() error {
 	if _, _, isSocket := tools.UnixSocket(SMTPListen); !isSocket && !re.MatchString(SMTPListen) {
 		return errors.New("[smtp] bind should be in the format of <ip>:<port>")
 	}
-	if SMSListen != "" {
-		if !re.MatchString(SMSListen) {
-			return errors.New("[sms] bind should be in the format of <ip>:<port>")
+	if TwilioListen != "" {
+		if !re.MatchString(TwilioListen) {
+			return errors.New("[twilio] bind should be in the format of <ip>:<port>")
+		}
+	}
+	if MailtrapListen != "" {
+		if !re.MatchString(MailtrapListen) {
+			return errors.New("[mailtrap] bind should be in the format of <ip>:<port>")
+		}
+	}
+	if SendGridListen != "" {
+		if !re.MatchString(SendGridListen) {
+			return errors.New("[sendgrid] bind should be in the format of <ip>:<port>")
 		}
 	}
 	if WebhookCaptureListen != "" {
@@ -612,8 +634,8 @@ func VerifyConfig() error {
 		return fmt.Errorf("webhook URL does not appear to be a valid URL (%s)", WebhookURL)
 	}
 
-	if SMSWebhookURL != "" && !isValidURL(SMSWebhookURL) {
-		return fmt.Errorf("SMS webhook URL does not appear to be a valid URL (%s)", SMSWebhookURL)
+	if TwilioWebhookURL != "" && !isValidURL(TwilioWebhookURL) {
+		return fmt.Errorf("Twilio webhook URL does not appear to be a valid URL (%s)", TwilioWebhookURL)
 	}
 
 	if EmailWebhookURL != "" {

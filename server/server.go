@@ -21,6 +21,7 @@ import (
 	"github.com/coreydaley/messagepit/internal/logger"
 	"github.com/coreydaley/messagepit/internal/pop3"
 	"github.com/coreydaley/messagepit/internal/prometheus"
+	"github.com/coreydaley/messagepit/internal/mailtrap"
 	"github.com/coreydaley/messagepit/internal/sendgrid"
 	"github.com/coreydaley/messagepit/internal/snakeoil"
 	"github.com/coreydaley/messagepit/internal/stats"
@@ -71,9 +72,6 @@ func Listen() {
 	go pop3.Run()
 
 	r := apiRoutes()
-
-	// SendGrid v3 Mail Send API stub — no middleware, Bearer auth handled inside handler
-	r.HandleFunc("/v3/mail/send", sendgrid.CreateMessage).Methods("POST")
 
 	// kubernetes probes
 	r.HandleFunc(config.Webroot+"livez", handlers.HealthzHandler)
@@ -183,12 +181,12 @@ func Listen() {
 	}
 }
 
-// ListenSMS starts the SMS ingest server on config.SMSListen.
+// ListenTwilio starts the Twilio SMS ingest server on config.TwilioListen.
 // It is a minimal HTTP server kept separate from the UI/API server so
 // applications can point their SMS provider URL at a different address
 // than the management UI.
-func ListenSMS() {
-	if config.SMSListen == "" {
+func ListenTwilio() {
+	if config.TwilioListen == "" {
 		return
 	}
 
@@ -196,13 +194,59 @@ func ListenSMS() {
 	r.HandleFunc("/2010-04-01/Accounts/{AccountSid}/Messages.json", twilio.CreateMessage).Methods("POST")
 
 	server := &http.Server{
-		Addr:         config.SMSListen,
+		Addr:         config.TwilioListen,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		Handler:      r,
 	}
 
-	logger.Log().Infof("[sms] starting on %s", config.SMSListen)
+	logger.Log().Infof("[twilio] starting on %s", config.TwilioListen)
+	if err := server.ListenAndServe(); err != nil {
+		storage.Close()
+		logger.Log().Fatal(err)
+	}
+}
+
+// ListenSendGrid starts the SendGrid v3 Mail Send API stub on config.SendGridListen.
+func ListenSendGrid() {
+	if config.SendGridListen == "" {
+		return
+	}
+
+	r := mux.NewRouter()
+	r.HandleFunc("/v3/mail/send", sendgrid.CreateMessage).Methods("POST")
+
+	server := &http.Server{
+		Addr:         config.SendGridListen,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		Handler:      r,
+	}
+
+	logger.Log().Infof("[sendgrid] starting on %s", config.SendGridListen)
+	if err := server.ListenAndServe(); err != nil {
+		storage.Close()
+		logger.Log().Fatal(err)
+	}
+}
+
+// ListenMailtrap starts the Mailtrap Email Sending API stub on config.MailtrapListen.
+func ListenMailtrap() {
+	if config.MailtrapListen == "" {
+		return
+	}
+
+	r := mux.NewRouter()
+	r.HandleFunc("/api/send", mailtrap.CreateMessage).Methods("POST")
+
+	server := &http.Server{
+		Addr:         config.MailtrapListen,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		Handler:      r,
+	}
+
+	logger.Log().Infof("[mailtrap] starting on %s", config.MailtrapListen)
 	if err := server.ListenAndServe(); err != nil {
 		storage.Close()
 		logger.Log().Fatal(err)

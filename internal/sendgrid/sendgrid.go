@@ -4,14 +4,18 @@ package sendgrid
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
+	"net/mail"
 	"strings"
 	"time"
 
 	"github.com/coreydaley/messagepit/config"
 	"github.com/coreydaley/messagepit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/mailadapter"
 	"github.com/coreydaley/messagepit/internal/storage"
 	"github.com/lithammer/shortuuid/v4"
 )
@@ -20,13 +24,6 @@ import (
 type address struct {
 	Email string `json:"email"`
 	Name  string `json:"name"`
-}
-
-func (a address) format() string {
-	if a.Name != "" {
-		return fmt.Sprintf("%s <%s>", a.Name, a.Email)
-	}
-	return a.Email
 }
 
 type content struct {
@@ -54,30 +51,37 @@ type mailSendRequest struct {
 // It stores the email in the MessagePit mailbox and fires the email delivery
 // webhook if an X-Notification-Id is found in the message custom_args.
 func CreateMessage(w http.ResponseWriter, r *http.Request) {
-	if config.SendGridAPIKey != "" {
-		authHeader := r.Header.Get("Authorization")
-		if !strings.HasPrefix(authHeader, "Bearer ") || strings.TrimPrefix(authHeader, "Bearer ") != config.SendGridAPIKey {
-			logger.Log().Warnf("[sendgrid] invalid API key from %s", r.RemoteAddr)
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
+	mailadapter.LimitBody(w, r)
+
+	if !mailadapter.BearerAuth(w, r, config.SendGridAPIKey, "[sendgrid]") {
+		return
 	}
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			mailadapter.JSONError(w, http.StatusRequestEntityTooLarge, "request body too large")
+		} else {
+			mailadapter.JSONError(w, http.StatusBadRequest, "failed to read request body")
+		}
 		return
 	}
 
 	var msg mailSendRequest
 	if err := json.Unmarshal(body, &msg); err != nil {
 		logger.Log().Warnf("[sendgrid] invalid JSON: %s", err)
-		w.WriteHeader(http.StatusBadRequest)
+		mailadapter.JSONError(w, http.StatusBadRequest, "invalid JSON")
 		return
 	}
 
 	if msg.From.Email == "" || msg.Subject == "" || len(msg.Personalizations) == 0 {
-		w.WriteHeader(http.StatusBadRequest)
+		mailadapter.JSONError(w, http.StatusBadRequest, "from, subject, and personalizations are required")
+		return
+	}
+
+	if _, err := mail.ParseAddress(msg.From.Email); err != nil {
+		mailadapter.JSONError(w, http.StatusBadRequest, "invalid from address")
 		return
 	}
 
@@ -95,8 +99,8 @@ func CreateMessage(w http.ResponseWriter, r *http.Request) {
 		notificationID := merged["notification_id"]
 
 		for _, to := range p.To {
-			mime := buildMIME(&msg, &p, to, notificationID)
-			id, err := storage.Store(&mime, &username)
+			mimeBytes := buildMIME(&msg, &p, to, notificationID)
+			id, err := storage.Store(&mimeBytes, &username)
 			if err != nil {
 				logger.Log().Errorf("[sendgrid] failed to store email for %s: %s", to.Email, err)
 			} else {
@@ -114,23 +118,26 @@ func CreateMessage(w http.ResponseWriter, r *http.Request) {
 func buildMIME(msg *mailSendRequest, p *personalization, to address, notificationID string) []byte {
 	var buf bytes.Buffer
 
+	fromStr, _ := mailadapter.FormatAddress(msg.From.Email, msg.From.Name)
+	toStr, _ := mailadapter.FormatAddress(to.Email, to.Name)
+
 	fmt.Fprintf(&buf, "Date: %s\r\n", time.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05 +0000"))
-	fmt.Fprintf(&buf, "From: %s\r\n", msg.From.format())
-	fmt.Fprintf(&buf, "To: %s\r\n", to.format())
+	fmt.Fprintf(&buf, "From: %s\r\n", fromStr)
+	fmt.Fprintf(&buf, "To: %s\r\n", toStr)
 
 	if len(p.CC) > 0 {
 		addrs := make([]string, len(p.CC))
 		for i, a := range p.CC {
-			addrs[i] = a.format()
+			addrs[i], _ = mailadapter.FormatAddress(a.Email, a.Name)
 		}
 		fmt.Fprintf(&buf, "Cc: %s\r\n", strings.Join(addrs, ", "))
 	}
 
-	fmt.Fprintf(&buf, "Subject: %s\r\n", msg.Subject)
+	fmt.Fprintf(&buf, "Subject: %s\r\n", mime.QEncoding.Encode("utf-8", msg.Subject))
 	fmt.Fprintf(&buf, "MIME-Version: 1.0\r\n")
 
 	for k, v := range msg.Headers {
-		fmt.Fprintf(&buf, "%s: %s\r\n", k, v)
+		fmt.Fprintf(&buf, "%s: %s\r\n", k, mailadapter.SanitizeHeaderValue(v))
 	}
 
 	if notificationID != "" {

@@ -18,15 +18,17 @@ MessagePit is a fork of [Mailpit](https://github.com/axllent/mailpit) extended w
 |------|----------|---------|
 | 1025 | SMTP | Email ingest (mirrors port 25) |
 | 1110 | POP3 | POP3 server (optional) |
-| 1775 | HTTP | SMS ingest — Twilio-compatible (mirrors SMPP port 2775) |
-| 8025 | HTTP | Web UI, management API, and SendGrid v3 `/v3/mail/send` stub |
-| 8026 | HTTP | Webhook capture — accepts any request on any path/method |
+| 8025 | HTTP | Web UI and management API |
+| 8100 | HTTP | Mailtrap Email Sending API stub — `POST /api/send` |
+| 8101 | HTTP | SendGrid v3 Mail Send stub — `POST /v3/mail/send` |
+| 8200 | HTTP | SMS ingest — Twilio-compatible |
+| 8300 | HTTP | Webhook capture — accepts any request on any path/method |
 
 ## Quick Start
 
 ```bash
 # Docker
-docker run -p 1025:1025 -p 1775:1775 -p 8025:8025 -p 8026:8026 ghcr.io/coreydaley/messagepit
+docker run -p 1025:1025 -p 8025:8025 -p 8100:8100 -p 8101:8101 -p 8200:8200 -p 8300:8300 ghcr.io/coreydaley/messagepit
 
 # From source
 make run
@@ -39,7 +41,7 @@ Open [http://localhost:8025](http://localhost:8025) in your browser.
 Point your application's Twilio SDK at the SMS ingest server instead of `api.twilio.com`:
 
 ```
-http://localhost:1775
+http://localhost:8200
 ```
 
 The SMS server implements the Twilio Messages API endpoint:
@@ -52,20 +54,20 @@ Required form fields: `From`, `To`, `Body`. Authentication uses HTTP Basic Auth 
 
 ### SMS delivery callbacks
 
-When `MP_SMS_WEBHOOK_URL` is set (or a per-request `StatusCallback` form field is provided), MessagePit fires a signed `POST` to that URL after capturing each message — mirroring how Twilio notifies your app of delivery status.
+When `MP_TWILIO_WEBHOOK_URL` is set (or a per-request `StatusCallback` form field is provided), MessagePit fires a signed `POST` to that URL after capturing each message — mirroring how Twilio notifies your app of delivery status.
 
-The callback body is `application/x-www-form-urlencoded` with `MessageSid`, `MessageStatus`, `To`, and `From`. When `MP_SMS_AUTH_TOKEN` is set the request includes an `X-Twilio-Signature` HMAC-SHA1 header so your webhook handler can validate it with the standard Twilio SDK.
+The callback body is `application/x-www-form-urlencoded` with `MessageSid`, `MessageStatus`, `To`, and `From`. When `MP_TWILIO_AUTH_TOKEN` is set the request includes an `X-Twilio-Signature` HMAC-SHA1 header so your webhook handler can validate it with the standard Twilio SDK.
 
-**Priority**: the `StatusCallback` field in the send request takes precedence over the global `MP_SMS_WEBHOOK_URL`.
+**Priority**: the `StatusCallback` field in the send request takes precedence over the global `MP_TWILIO_WEBHOOK_URL`.
 
 ## Webhook Capture
 
-MessagePit runs a second HTTP server (port 8026 by default) that accepts any incoming HTTP request on any path and method, stores it, and displays it in the **Webhooks** tab of the UI. This is useful for developing and testing outbound webhook delivery from your application without needing a public endpoint.
+MessagePit runs a dedicated HTTP server (port 8300 by default) that accepts any incoming HTTP request on any path and method, stores it, and displays it in the **Webhooks** tab of the UI. This is useful for developing and testing outbound webhook delivery from your application without needing a public endpoint.
 
 Point your webhook URL at the capture server:
 
 ```
-http://localhost:8026/any/path/you/like
+http://localhost:8300/any/path/you/like
 ```
 
 Any HTTP method works: `POST`, `GET`, `PUT`, `PATCH`, `DELETE`. The full request — method, path, headers, body, source IP — is captured and displayed in real time via WebSocket.
@@ -82,9 +84,31 @@ The capture server is enabled by default. Set `--webhook ""` (or `MP_WEBHOOK_BIN
 | DELETE | `/api/v1/webhook/{id}` | Delete a single captured request |
 | DELETE | `/api/v1/webhooks` | Delete all captured requests |
 
+## Email Integration (Mailtrap)
+
+MessagePit exposes a Mailtrap Email Sending API stub on port 8100:
+
+```
+POST /api/send
+Authorization: Bearer <MP_MAILTRAP_API_KEY>
+Content-Type: application/json
+```
+
+Point your application's Mailtrap SDK at the stub by setting the API base URL to `http://localhost:8100`. The endpoint accepts the standard Mailtrap JSON payload (`from`, `to`, `cc`, `bcc`, `subject`, `text`, `html`, `headers`) and stores the message in the MessagePit mailbox as a single MIME email — all `to` recipients appear on one `To:` header. Authentication is skipped when `MP_MAILTRAP_API_KEY` is empty.
+
+Ignored fields (accepted but not stored): `category`, `custom_variables`, `attachments`.
+
+The response shape mirrors the Mailtrap API:
+
+```json
+{"success": true, "message_ids": ["<id>"]}
+```
+
+The Mailtrap server defaults to `127.0.0.1:8100` (loopback only). Set `MP_MAILTRAP_BIND_ADDR=0.0.0.0:8100` to expose it on all interfaces (e.g. inside Docker). Set `MP_MAILTRAP_BIND_ADDR=""` to disable it entirely.
+
 ## Email Integration (SendGrid v3)
 
-MessagePit exposes a SendGrid v3 Mail Send stub:
+MessagePit exposes a SendGrid v3 Mail Send stub on port 8101:
 
 ```
 POST /v3/mail/send
@@ -92,7 +116,9 @@ Authorization: Bearer <MP_SENDGRID_API_KEY>
 Content-Type: application/json
 ```
 
-The endpoint accepts the standard SendGrid v3 JSON payload (`personalizations`, `from`, `subject`, `content`, `custom_args`) and stores each message in the MessagePit mailbox. Authentication is skipped when `MP_SENDGRID_API_KEY` is empty.
+Point your application's SendGrid SDK at the stub by setting the API base URL to `http://localhost:8101`. The endpoint accepts the standard SendGrid v3 JSON payload (`personalizations`, `from`, `subject`, `content`, `custom_args`) and stores each message in the MessagePit mailbox. Authentication is skipped when `MP_SENDGRID_API_KEY` is empty.
+
+The SendGrid server defaults to `127.0.0.1:8101` (loopback only). Set `MP_SENDGRID_BIND_ADDR=0.0.0.0:8101` to expose it on all interfaces (e.g. inside Docker). Set `MP_SENDGRID_BIND_ADDR=""` to disable it entirely.
 
 ### Email delivery webhooks
 
@@ -155,18 +181,21 @@ make build   # compile the binary only (requires ui assets)
 
 ## Configuration
 
-All flags can also be set via environment variables (e.g. `--smtp` → `MP_SMTP_BIND_ADDR`, `--sms` → `MP_SMS_BIND_ADDR`).
+All flags can also be set via environment variables (e.g. `--smtp` → `MP_SMTP_BIND_ADDR`, `--twilio` → `MP_TWILIO_BIND_ADDR`).
 
 | Flag | Env var | Default | Description |
 |------|---------|---------|-------------|
 | `--smtp` | `MP_SMTP_BIND_ADDR` | `0.0.0.0:1025` | SMTP bind address |
-| `--sms` | `MP_SMS_BIND_ADDR` | `0.0.0.0:1775` | SMS ingest bind address |
-| `--listen` | `MP_UI_BIND_ADDR` | `0.0.0.0:8025` | HTTP UI/API bind address |
-| `--webhook` | `MP_WEBHOOK_BIND_ADDR` | `[::]:8026` | HTTP webhook capture bind address (empty to disable) |
-| `--db` | `MP_DATABASE` | *(in-memory)* | SQLite database file path |
-| `--sms-auth-token` | `MP_SMS_AUTH_TOKEN` | | Twilio auth token — validates Basic Auth on inbound SMS; signs outgoing delivery callbacks |
-| `--sms-webhook-url` | `MP_SMS_WEBHOOK_URL` | | URL to POST SMS delivery callbacks to (fallback when no per-request `StatusCallback`) |
+| `--mailtrap` | `MP_MAILTRAP_BIND_ADDR` | `127.0.0.1:8100` | Mailtrap Email Sending API bind address (empty to disable) |
+| `--mailtrap-api-key` | `MP_MAILTRAP_API_KEY` | | Expected Bearer token for `/api/send` (skipped when empty) |
+| `--sendgrid` | `MP_SENDGRID_BIND_ADDR` | `127.0.0.1:8101` | SendGrid v3 Mail Send API bind address (empty to disable) |
 | `--sendgrid-api-key` | `MP_SENDGRID_API_KEY` | | Expected Bearer token for `/v3/mail/send` (skipped when empty) |
+| `--twilio` | `MP_TWILIO_BIND_ADDR` | `[::]:8200` | Twilio SMS ingest bind address |
+| `--twilio-auth-token` | `MP_TWILIO_AUTH_TOKEN` | | Twilio auth token — validates Basic Auth on inbound SMS; signs outgoing delivery callbacks |
+| `--twilio-webhook-url` | `MP_TWILIO_WEBHOOK_URL` | | URL to POST SMS delivery callbacks to (fallback when no per-request `StatusCallback`) |
+| `--webhook` | `MP_WEBHOOK_BIND_ADDR` | `[::]:8300` | HTTP webhook capture bind address (empty to disable) |
+| `--listen` | `MP_UI_BIND_ADDR` | `0.0.0.0:8025` | HTTP UI/API bind address |
+| `--db` | `MP_DATABASE` | *(in-memory)* | SQLite database file path |
 | `--email-webhook-url` | `MP_EMAIL_WEBHOOK_URL` | | URL to POST email delivery event webhooks to |
 | `--email-webhook-signing-key` | `MP_EMAIL_WEBHOOK_SIGNING_KEY` | | Base64-encoded SEC1 DER ECDSA P-256 private key (auto-generated when empty) |
 
@@ -207,17 +236,26 @@ services:
       - "host.docker.internal:host-gateway"
     ports:
       - "1025:1025"   # SMTP
-      - "1775:1775"   # SMS ingest (Twilio-compatible)
-      - "8025:8025"   # Web UI + SendGrid v3 stub
-      - "8026:8026"   # Webhook capture
+      - "8025:8025"   # Web UI
+      - "8100:8100"   # Mailtrap Email Sending API stub
+      - "8101:8101"   # SendGrid v3 Mail Send stub
+      - "8200:8200"   # SMS ingest (Twilio-compatible)
+      - "8300:8300"   # Webhook capture
     environment:
-      # SMS — must match TWILIO_AUTH_TOKEN in your app
-      MP_SMS_AUTH_TOKEN: your-twilio-auth-token
-      # Fallback SMS callback URL (per-request StatusCallback takes priority)
-      MP_SMS_WEBHOOK_URL: http://host.docker.internal:3000/webhooks/v1/sms
+      # Mailtrap Email Sending API stub — must match MAILTRAP_API_KEY in your app
+      MP_MAILTRAP_API_KEY: your-mailtrap-api-key
+      # Expose Mailtrap on all interfaces inside the container
+      MP_MAILTRAP_BIND_ADDR: "0.0.0.0:8100"
 
       # SendGrid v3 stub — must match SENDGRID_API_KEY in your app
       MP_SENDGRID_API_KEY: your-sendgrid-api-key
+      # Expose SendGrid on all interfaces inside the container
+      MP_SENDGRID_BIND_ADDR: "0.0.0.0:8101"
+
+      # Twilio SMS — must match TWILIO_AUTH_TOKEN in your app
+      MP_TWILIO_AUTH_TOKEN: your-twilio-auth-token
+      # Fallback SMS callback URL (per-request StatusCallback takes priority)
+      MP_TWILIO_WEBHOOK_URL: http://host.docker.internal:3000/webhooks/v1/sms
       # Email delivery webhook URL
       MP_EMAIL_WEBHOOK_URL: http://host.docker.internal:3000/webhooks/v1/email
       # ECDSA private key for signing email webhooks (generate with openssl, see above)
@@ -246,16 +284,16 @@ gem "sendgrid-actionmailer"
 ```bash
 # SMS
 TWILIO_ACCOUNT_SID=test
-TWILIO_AUTH_TOKEN=test           # must match MP_SMS_AUTH_TOKEN
+TWILIO_AUTH_TOKEN=test           # must match MP_TWILIO_AUTH_TOKEN
 TWILIO_ACCOUNT_NUMBER=+15550000000
-TWILIO_API_URL=http://localhost:1775
+TWILIO_API_URL=http://localhost:8200
 # Callback URL must use host.docker.internal so MessagePit (in Docker)
 # can reach your Rails app running on the host.
 TWILIO_STATUS_CALLBACK_URL=http://host.docker.internal:3000/webhooks/v1/sms
 
 # Email
 SENDGRID_API_KEY=test            # must match MP_SENDGRID_API_KEY
-SENDGRID_API_URL=http://localhost:8025
+SENDGRID_API_URL=http://localhost:8101
 # PKIX DER base64 public key matching MP_EMAIL_WEBHOOK_SIGNING_KEY
 SENDGRID_WEBHOOK_PUBLIC_KEY=<base64-encoded PKIX DER public key>
 ```

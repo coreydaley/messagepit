@@ -78,10 +78,10 @@ func CreateMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Prefer the per-request StatusCallback URL (mirrors real Twilio behaviour),
-	// fall back to the globally configured MP_SMS_WEBHOOK_URL.
+	// fall back to the globally configured MP_TWILIO_WEBHOOK_URL.
 	callbackURL := strings.TrimSpace(r.FormValue("StatusCallback"))
 	if callbackURL == "" {
-		callbackURL = config.SMSWebhookURL
+		callbackURL = config.TwilioWebhookURL
 	}
 	fireSMSCallback(id, to, from, callbackURL)
 
@@ -165,7 +165,7 @@ func fireSMSCallback(sid, to, from, callbackURL string) {
 		body := params.Encode()
 		req, err := http.NewRequest("POST", callbackURL, strings.NewReader(body))
 		if err != nil {
-			logger.Log().Errorf("[sms-callback] failed to build request: %s", err)
+			logger.Log().Errorf("[twilio-callback] failed to build request: %s", err)
 			return
 		}
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -175,14 +175,14 @@ func fireSMSCallback(sid, to, from, callbackURL string) {
 		client := &http.Client{Timeout: 5 * time.Second}
 		resp, err := client.Do(req)
 		if err != nil {
-			logger.Log().Errorf("[sms-callback] error: %s", err)
+			logger.Log().Errorf("[twilio-callback] error: %s", err)
 			return
 		}
 		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode < 200 || resp.StatusCode > 299 {
-			logger.Log().Warnf("[sms-callback] %s returned %d", callbackURL, resp.StatusCode)
+			logger.Log().Warnf("[twilio-callback] %s returned %d", callbackURL, resp.StatusCode)
 		} else {
-			logger.Log().Debugf("[sms-callback] delivery callback sent for %s", sid)
+			logger.Log().Debugf("[twilio-callback] delivery callback sent for %s", sid)
 		}
 	}()
 }
