@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(rm -f /Users/corey/Code/github.com/coreydaley/messagepit/main/.git/index.lock)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(rm /Users/corey/Code/github.com/coreydaley/messagepit/main/.claude/commands/provider-compat.md)",
+      "Bash(mkdir -p /Users/corey/Code/github.com/coreydaley/messagepit/main/.claude/skills/provider-compat/scripts)"
     ]
   }
 }
