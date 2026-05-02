@@ -218,7 +218,7 @@ var (
 
 	// SendGridListen is the bind address for the SendGrid v3 Mail Send API stub.
 	// When empty, the SendGrid server is disabled.
-	SendGridListen = "127.0.0.1:8101"
+	SendGridListen = "127.0.0.1:8100"
 
 	// SendGridAPIKey is the expected Bearer token for the SendGrid v3 /v3/mail/send endpoint.
 	// When empty, authentication is skipped (suitable for local development without auth).
@@ -241,14 +241,6 @@ var (
 	// TwilioWebhookURL is the URL to POST Twilio-style status callbacks after capturing an SMS.
 	// When set, MessagePit fires a delivery callback signed with TwilioAuthToken (if set).
 	TwilioWebhookURL string
-
-	// MailtrapListen is the bind address for the Mailtrap Email Sending API stub.
-	// When empty, the Mailtrap server is disabled.
-	MailtrapListen = "127.0.0.1:8100"
-
-	// MailtrapAPIKey is the expected Bearer token for POST /api/send.
-	// When empty, authentication is skipped.
-	MailtrapAPIKey string
 
 	// EmailWebhookURL is the URL to POST SendGrid-style event webhooks after capturing an email.
 	// When set, MessagePit fires a "delivered" event signed with the ECDSA key.
@@ -379,11 +371,6 @@ func VerifyConfig() error {
 	if TwilioListen != "" {
 		if !re.MatchString(TwilioListen) {
 			return errors.New("[twilio] bind should be in the format of <ip>:<port>")
-		}
-	}
-	if MailtrapListen != "" {
-		if !re.MatchString(MailtrapListen) {
-			return errors.New("[mailtrap] bind should be in the format of <ip>:<port>")
 		}
 	}
 	if SendGridListen != "" {

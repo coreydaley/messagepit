@@ -50,7 +50,6 @@ Documentation:
 		go server.Listen()
 		go server.ListenSendGrid()
 		go server.ListenTwilio()
-		go server.ListenMailtrap()
 		go server.ListenWebhookCapture()
 
 		if err := smtpd.Listen(); err != nil {
@@ -123,10 +122,6 @@ func init() {
 	rootCmd.Flags().StringVar(&config.TwilioListen, "twilio", config.TwilioListen, "Twilio SMS ingest bind interface and port")
 	rootCmd.Flags().StringVar(&config.TwilioAuthToken, "twilio-auth-token", config.TwilioAuthToken, "Twilio auth token to validate X-Twilio-Signature on incoming SMS webhooks")
 	rootCmd.Flags().StringVar(&config.TwilioWebhookURL, "twilio-webhook-url", config.TwilioWebhookURL, "POST Twilio-style delivery callback to this URL after capturing SMS")
-
-	// Mailtrap Email Sending API stub
-	rootCmd.Flags().StringVar(&config.MailtrapListen, "mailtrap", config.MailtrapListen, "Mailtrap Email Sending API bind interface and port (empty to disable)")
-	rootCmd.Flags().StringVar(&config.MailtrapAPIKey, "mailtrap-api-key", config.MailtrapAPIKey, "Bearer token expected on POST /api/send (Mailtrap API stub)")
 
 	// SendGrid Email Sending API stub
 	rootCmd.Flags().StringVar(&config.SendGridListen, "sendgrid", config.SendGridListen, "SendGrid v3 Mail Send API bind interface and port (empty to disable)")
@@ -309,14 +304,6 @@ func initConfigFromEnv() {
 	}
 	if len(os.Getenv("MP_TWILIO_WEBHOOK_URL")) > 0 {
 		config.TwilioWebhookURL = os.Getenv("MP_TWILIO_WEBHOOK_URL")
-	}
-
-	// Mailtrap Email Sending API stub
-	if len(os.Getenv("MP_MAILTRAP_BIND_ADDR")) > 0 {
-		config.MailtrapListen = os.Getenv("MP_MAILTRAP_BIND_ADDR")
-	}
-	if len(os.Getenv("MP_MAILTRAP_API_KEY")) > 0 {
-		config.MailtrapAPIKey = os.Getenv("MP_MAILTRAP_API_KEY")
 	}
 
 	// SendGrid Email Sending API stub

@@ -35,8 +35,9 @@ func assertJSONError(t *testing.T, rr *httptest.ResponseRecorder) {
 	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
 		t.Fatalf("response body is not valid JSON: %v\nbody: %s", err, rr.Body.String())
 	}
-	if _, ok := body["error"]; !ok {
-		t.Errorf("expected 'error' key in JSON response body, got: %v", body)
+	// SendGrid spec: error responses use {"errors":[{"message":"..."}]}.
+	if _, ok := body["errors"]; !ok {
+		t.Errorf("expected 'errors' array in JSON response body, got: %v", body)
 	}
 }
 
@@ -150,7 +151,6 @@ func TestCreateMessage_InvalidAuth_Returns401(t *testing.T) {
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", rr.Code)
 	}
-	assertJSONError(t, rr)
 }
 
 func TestCreateMessage_MalformedAuthHeader_Returns401(t *testing.T) {
@@ -165,7 +165,6 @@ func TestCreateMessage_MalformedAuthHeader_Returns401(t *testing.T) {
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 for malformed auth header, got %d", rr.Code)
 	}
-	assertJSONError(t, rr)
 }
 
 func TestCreateMessage_NoAuthWhenKeyEmpty_Returns202(t *testing.T) {

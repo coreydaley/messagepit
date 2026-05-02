@@ -15,11 +15,9 @@ import (
 	"github.com/coreydaley/messagepit/config"
 	"github.com/coreydaley/messagepit/internal/auth"
 	"github.com/coreydaley/messagepit/internal/logger"
-	"github.com/coreydaley/messagepit/internal/mailtrap"
 	"github.com/coreydaley/messagepit/internal/sendgrid"
 	"github.com/coreydaley/messagepit/internal/storage"
 	"github.com/coreydaley/messagepit/server/apiv1"
-	"github.com/gorilla/mux"
 	"github.com/jhillyerd/enmime/v2"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -1024,31 +1022,6 @@ func TestSendGridEndpoint(t *testing.T) {
 	}
 	if len(msgs) != 1 {
 		t.Fatalf("expected 1 message stored after SendGrid POST, got %d", len(msgs))
-	}
-}
-
-func TestMailtrapEndpoint(t *testing.T) {
-	setup()
-	defer storage.Close()
-
-	r := mux.NewRouter()
-	r.HandleFunc("/api/send", mailtrap.CreateMessage).Methods("POST")
-	ts := httptest.NewServer(r)
-	defer ts.Close()
-
-	payload := `{"from":{"email":"sender@example.com"},"to":[{"email":"to@example.com"}],"subject":"Mailtrap Integration Test","text":"hello from mailtrap"}`
-
-	_, err := clientPostExpect(ts.URL+"/api/send", payload, http.StatusOK)
-	if err != nil {
-		t.Fatalf("POST /api/send: %v", err)
-	}
-
-	msgs, err := storage.List(0, 0, 10)
-	if err != nil {
-		t.Fatalf("List: %v", err)
-	}
-	if len(msgs) != 1 {
-		t.Fatalf("expected 1 message stored after Mailtrap POST, got %d", len(msgs))
 	}
 }
 

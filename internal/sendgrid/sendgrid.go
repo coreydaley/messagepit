@@ -47,6 +47,19 @@ type mailSendRequest struct {
 	Headers          map[string]string `json:"headers"`
 }
 
+// jsonError writes an error response in SendGrid's {"errors":[{"message":"..."}]} shape.
+func jsonError(w http.ResponseWriter, status int, msg string) {
+	type item struct {
+		Message string `json:"message"`
+	}
+	type body struct {
+		Errors []item `json:"errors"`
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(body{Errors: []item{{Message: msg}}})
+}
+
 // CreateMessage handles POST /v3/mail/send (SendGrid v3 Mail Send API).
 // It stores the email in the MessagePit mailbox and fires the email delivery
 // webhook if an X-Notification-Id is found in the message custom_args.
@@ -57,32 +70,50 @@ func CreateMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := io.ReadAll(r.Body)
+	b, err := io.ReadAll(r.Body)
 	if err != nil {
 		var maxErr *http.MaxBytesError
 		if errors.As(err, &maxErr) {
-			mailadapter.JSONError(w, http.StatusRequestEntityTooLarge, "request body too large")
+			jsonError(w, http.StatusRequestEntityTooLarge, "request body too large")
 		} else {
-			mailadapter.JSONError(w, http.StatusBadRequest, "failed to read request body")
+			jsonError(w, http.StatusBadRequest, "failed to read request body")
 		}
 		return
 	}
 
 	var msg mailSendRequest
-	if err := json.Unmarshal(body, &msg); err != nil {
+	if err := json.Unmarshal(b, &msg); err != nil {
 		logger.Log().Warnf("[sendgrid] invalid JSON: %s", err)
-		mailadapter.JSONError(w, http.StatusBadRequest, "invalid JSON")
+		jsonError(w, http.StatusBadRequest, "invalid JSON")
 		return
 	}
 
 	if msg.From.Email == "" || msg.Subject == "" || len(msg.Personalizations) == 0 {
-		mailadapter.JSONError(w, http.StatusBadRequest, "from, subject, and personalizations are required")
+		jsonError(w, http.StatusBadRequest, "from, subject, and personalizations are required")
 		return
 	}
 
 	if _, err := mail.ParseAddress(msg.From.Email); err != nil {
-		mailadapter.JSONError(w, http.StatusBadRequest, "invalid from address")
+		jsonError(w, http.StatusBadRequest, "invalid from address")
 		return
+	}
+
+	for i, p := range msg.Personalizations {
+		if len(p.To) == 0 {
+			jsonError(w, http.StatusBadRequest, fmt.Sprintf("personalizations[%d].to is required", i))
+			return
+		}
+	}
+
+	for i, c := range msg.Content {
+		if c.Type == "" {
+			jsonError(w, http.StatusBadRequest, fmt.Sprintf("content[%d].type is required (minLength=1)", i))
+			return
+		}
+		if c.Value == "" {
+			jsonError(w, http.StatusBadRequest, fmt.Sprintf("content[%d].value is required (minLength=1)", i))
+			return
+		}
 	}
 
 	username := "sendgrid"

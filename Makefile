@@ -23,8 +23,7 @@ ui-watch:
 run: all
 	./$(BINARY) \
 		--smtp 0.0.0.0:1025 \
-		--mailtrap 0.0.0.0:8100 \
-		--sendgrid 0.0.0.0:8101 \
+		--sendgrid 0.0.0.0:8100 \
 		--twilio 0.0.0.0:8200 \
 		--webhook 0.0.0.0:8300 \
 		--listen 0.0.0.0:8025 \
@@ -34,8 +33,7 @@ run: all
 dev:
 	CGO_ENABLED=0 go run . \
 		--smtp 0.0.0.0:1025 \
-		--mailtrap 0.0.0.0:8100 \
-		--sendgrid 0.0.0.0:8101 \
+		--sendgrid 0.0.0.0:8100 \
 		--twilio 0.0.0.0:8200 \
 		--webhook 0.0.0.0:8300 \
 		--listen 0.0.0.0:8025 \

@@ -21,7 +21,6 @@ import (
 	"github.com/coreydaley/messagepit/internal/logger"
 	"github.com/coreydaley/messagepit/internal/pop3"
 	"github.com/coreydaley/messagepit/internal/prometheus"
-	"github.com/coreydaley/messagepit/internal/mailtrap"
 	"github.com/coreydaley/messagepit/internal/sendgrid"
 	"github.com/coreydaley/messagepit/internal/snakeoil"
 	"github.com/coreydaley/messagepit/internal/stats"
@@ -224,29 +223,6 @@ func ListenSendGrid() {
 	}
 
 	logger.Log().Infof("[sendgrid] starting on %s", config.SendGridListen)
-	if err := server.ListenAndServe(); err != nil {
-		storage.Close()
-		logger.Log().Fatal(err)
-	}
-}
-
-// ListenMailtrap starts the Mailtrap Email Sending API stub on config.MailtrapListen.
-func ListenMailtrap() {
-	if config.MailtrapListen == "" {
-		return
-	}
-
-	r := mux.NewRouter()
-	r.HandleFunc("/api/send", mailtrap.CreateMessage).Methods("POST")
-
-	server := &http.Server{
-		Addr:         config.MailtrapListen,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		Handler:      r,
-	}
-
-	logger.Log().Infof("[mailtrap] starting on %s", config.MailtrapListen)
 	if err := server.ListenAndServe(); err != nil {
 		storage.Close()
 		logger.Log().Fatal(err)
