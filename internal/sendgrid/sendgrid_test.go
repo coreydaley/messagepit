@@ -6,11 +6,13 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/coreydaley/messagepit/config"
 	"github.com/coreydaley/messagepit/internal/logger"
+	"github.com/coreydaley/messagepit/internal/mailevents"
 	"github.com/coreydaley/messagepit/internal/storage"
 	"github.com/gorilla/mux"
 )
@@ -489,5 +491,149 @@ func TestCreateMessage_ConstantTimeAuth_RejectsPartialKey(t *testing.T) {
 	rr := makeRequest(t, validPayload(t, nil), "Bearer full-secret")
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 for partial key, got %d", rr.Code)
+	}
+}
+
+// headerValue returns the value of the named header from a stored raw message.
+func headerValue(t *testing.T, raw, name string) string {
+	t.Helper()
+	for _, line := range strings.Split(raw, "\r\n") {
+		if line == "" {
+			break // end of headers
+		}
+		if v, ok := strings.CutPrefix(line, name+": "); ok {
+			return v
+		}
+	}
+	return ""
+}
+
+// storedRaw returns the raw MIME of the single stored message.
+func storedRaw(t *testing.T) string {
+	t.Helper()
+	msgs := listMessages(t)
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 stored message, got %d", len(msgs))
+	}
+	raw, err := storage.GetMessageRaw(msgs[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(raw)
+}
+
+func TestCreateMessage_CategoriesAndCustomArgs_InSMTPAPIHeader(t *testing.T) {
+	setup()
+	defer storage.Close()
+
+	payload := validPayload(t, map[string]any{
+		"categories":  []string{"welcome", "onboarding"},
+		"custom_args": map[string]string{"notification_id": "n-5", "tenant": "acme"},
+	})
+
+	rr := makeRequest(t, payload, "")
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	value := headerValue(t, storedRaw(t), mailevents.SMTPAPIHeader)
+	if value == "" {
+		t.Fatalf("no %s header in stored MIME", mailevents.SMTPAPIHeader)
+	}
+
+	cats, args := mailevents.ParseSMTPAPI(value)
+	if !reflect.DeepEqual(cats, []string{"welcome", "onboarding"}) {
+		t.Errorf("categories = %v", cats)
+	}
+	if args["notification_id"] != "n-5" || args["tenant"] != "acme" {
+		t.Errorf("unique_args = %v", args)
+	}
+}
+
+func TestCreateMessage_NoSMTPAPIHeaderWhenNothingToCarry(t *testing.T) {
+	setup()
+	defer storage.Close()
+
+	rr := makeRequest(t, validPayload(t, nil), "")
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d", rr.Code)
+	}
+
+	if v := headerValue(t, storedRaw(t), mailevents.SMTPAPIHeader); v != "" {
+		t.Errorf("expected no %s header, got %q", mailevents.SMTPAPIHeader, v)
+	}
+}
+
+func TestCreateMessage_ScenarioCustomArg_SetsScenarioHeader(t *testing.T) {
+	setup()
+	defer storage.Close()
+
+	payload := validPayload(t, map[string]any{
+		"custom_args": map[string]string{"mp_scenario": "bounce"},
+	})
+
+	rr := makeRequest(t, payload, "")
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d", rr.Code)
+	}
+
+	if v := headerValue(t, storedRaw(t), mailevents.ScenarioHeader); v != "bounce" {
+		t.Errorf("%s = %q, want bounce", mailevents.ScenarioHeader, v)
+	}
+}
+
+func TestCreateMessage_PersonalizationCategoriesShared(t *testing.T) {
+	setup()
+	defer storage.Close()
+
+	// Categories are message-level in the v3 API; every recipient must get them.
+	payload := validPayload(t, map[string]any{
+		"categories": []string{"blast"},
+		"personalizations": []map[string]any{
+			{"to": []map[string]string{{"email": "a@example.com"}}},
+			{"to": []map[string]string{{"email": "b@example.com"}}},
+		},
+	})
+
+	rr := makeRequest(t, payload, "")
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d", rr.Code)
+	}
+
+	msgs := listMessages(t)
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 stored messages, got %d", len(msgs))
+	}
+	for _, m := range msgs {
+		raw, err := storage.GetMessageRaw(m.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cats, _ := mailevents.ParseSMTPAPI(headerValue(t, string(raw), mailevents.SMTPAPIHeader))
+		if !reflect.DeepEqual(cats, []string{"blast"}) {
+			t.Errorf("categories = %v for %s", cats, m.ID)
+		}
+	}
+}
+
+func TestCreateMessage_CustomArgHeaderInjection_Sanitized(t *testing.T) {
+	setup()
+	defer storage.Close()
+
+	payload := validPayload(t, map[string]any{
+		"custom_args": map[string]string{
+			"notification_id": "n-1\r\nX-Injected: yes",
+			"mp_scenario":     "bounce\r\nX-Also-Injected: yes",
+		},
+	})
+
+	rr := makeRequest(t, payload, "")
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d", rr.Code)
+	}
+
+	raw := storedRaw(t)
+	if strings.Contains(raw, "\nX-Injected:") || strings.Contains(raw, "\nX-Also-Injected:") {
+		t.Errorf("custom_args must not be able to inject headers:\n%s", raw)
 	}
 }

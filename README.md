@@ -9,7 +9,7 @@ MessagePit is a fork of [Mailpit](https://github.com/axllent/mailpit) extended w
 - **Email**: SMTP server, SendGrid v3 API stub, web UI, REST API, WebSocket live updates, search, tagging, POP3 server
 - **SMS**: Twilio-compatible HTTP ingest, SMS inbox with read/unread tracking, live WebSocket updates
 - **Webhook capture**: Dedicated HTTP server that captures any incoming request on any path/method and displays it in the UI — useful for inspecting outbound webhook calls from your app in development
-- **Delivery callbacks**: Signed SMS status callbacks and SendGrid-style email event webhooks for end-to-end delivery tracking
+- **Delivery callbacks**: Signed SMS status progressions (`queued` → `sent` → `delivered`) and full SendGrid event lifecycles, with magic numbers and scenario triggers for the failure branches
 - **Shared**: Multi-arch Docker image, optional HTTP basic auth, Prometheus metrics
 
 ## Ports
@@ -51,13 +51,59 @@ POST /2010-04-01/Accounts/{AccountSid}/Messages.json
 
 Required form fields: `From`, `To`, `Body`. Authentication uses HTTP Basic Auth (`AccountSid`:`AuthToken`).
 
-### SMS delivery callbacks
+### SMS status callbacks
 
-When `MP_TWILIO_WEBHOOK_URL` is set (or a per-request `StatusCallback` form field is provided), MessagePit fires a signed `POST` to that URL after capturing each message — mirroring how Twilio notifies your app of delivery status.
+When `MP_TWILIO_WEBHOOK_URL` is set (or a per-request `StatusCallback` form field is provided), MessagePit replays the message's full **status progression** to that URL — one signed `POST` per state change, exactly as Twilio does:
 
-The callback body is `application/x-www-form-urlencoded` with `MessageSid`, `MessageStatus`, `To`, and `From`. When `MP_TWILIO_AUTH_TOKEN` is set the request includes an `X-Twilio-Signature` HMAC-SHA1 header so your webhook handler can validate it with the standard Twilio SDK.
+```
+queued → sent → delivered
+```
+
+The `POST /Messages.json` response still reports `"status": "queued"`, matching real Twilio: the terminal state only ever arrives via callback.
+
+Each callback body is `application/x-www-form-urlencoded`:
+
+| Field | Notes |
+|---|---|
+| `MessageSid` / `SmsSid` | Stable across the whole progression |
+| `MessageStatus` / `SmsStatus` | `queued`, `sent`, `delivered`, `undelivered`, `failed` |
+| `To`, `From` | As submitted |
+| `AccountSid` | From the request path |
+| `ApiVersion` | `2010-04-01` |
+| `ErrorCode`, `ErrorMessage` | Present only on `failed` / `undelivered` |
+
+When `MP_TWILIO_AUTH_TOKEN` is set, every callback carries an `X-Twilio-Signature` HMAC-SHA1 header so your handler can validate it with the standard Twilio SDK.
 
 **Priority**: the `StatusCallback` field in the send request takes precedence over the global `MP_TWILIO_WEBHOOK_URL`.
+
+Set `--twilio-callback-delay` (`MP_TWILIO_CALLBACK_DELAY`, e.g. `750ms`) to space the callbacks out. The default is `0` — the states still arrive in order, just without the wall-clock gap.
+
+#### Magic numbers
+
+Twilio reserves the `+1500555xxxx` range for test numbers. MessagePit honours the real ones and adds its own in the same range for the delivery-failure branches, which real Twilio has no way to trigger on demand.
+
+**API rejections** (real Twilio behaviour) — the send returns HTTP 400 with a Twilio error code, nothing is stored, and no callback fires:
+
+| Number | Field | Code | Meaning |
+|---|---|---|---|
+| `+15005550001` | `To` | 21211 | Not a valid phone number |
+| `+15005550002` | `To` | 21612 | Not currently reachable via SMS |
+| `+15005550003` | `To` | 21408 | Region not enabled for SMS |
+| `+15005550004` | `To` | 21610 | Unsubscribed recipient |
+| `+15005550009` | `To` | 21614 | Not a valid mobile number |
+| `+15005550001` | `From` | 21212 | Not a valid sender |
+| `+15005550007` | `From` | 21606 | Not an SMS-capable number on this account |
+| `+15005550008` | `From` | 21611 | Sender queue full |
+
+**Delivery failures** (MessagePit extension) — the send succeeds; the failure surfaces through the callback progression:
+
+| `To` number | Progression | `ErrorCode` |
+|---|---|---|
+| `+15005550010` | `queued` → `failed` | 30008 (unknown error) |
+| `+15005550011` | `queued` → `sent` → `undelivered` | 30003 (unreachable handset) |
+| `+15005550012` | `queued` → `sent` → `undelivered` | 30005 (unknown handset) |
+| `+15005550013` | `queued` → `sent` → `undelivered` | 30006 (landline / unreachable carrier) |
+| `+15005550014` | `queued` → `sent` | — (carrier never confirms) |
 
 ## Webhook Capture
 
@@ -97,20 +143,64 @@ Point your application's SendGrid SDK at the stub by setting the API base URL to
 
 The SendGrid server defaults to `127.0.0.1:8100` (loopback only). Set `MP_SENDGRID_BIND_ADDR=0.0.0.0:8100` to expose it on all interfaces (e.g. inside Docker). Set `MP_SENDGRID_BIND_ADDR=""` to disable it entirely.
 
-### Email delivery webhooks
+### Email event webhooks
 
-When `MP_EMAIL_WEBHOOK_URL` is set, MessagePit fires a SendGrid-style event webhook after capturing each email that contains a `notification_id` key in `custom_args`. The webhook payload is a JSON array of event objects:
+When `MP_EMAIL_WEBHOOK_URL` is set, MessagePit replays the **full SendGrid event lifecycle** for every captured email — one `POST` per event, in order:
+
+```
+processed → delivered
+```
+
+Real SendGrid fires its event webhook for everything it accepts, over both the v3 API and its SMTP relay, so MessagePit does the same. No `custom_args` are required.
+
+Each request body is a JSON array holding a single event (SendGrid batches events that land in the same window; MessagePit sends them individually so the ordering stays visible in development):
 
 ```json
 [
   {
-    "notification_id": "<value from custom_args>",
-    "event": "delivered",
     "email": "recipient@example.com",
-    "timestamp": 1714000000
+    "timestamp": 1714000000,
+    "smtp-id": "<abc123@messagepit>",
+    "event": "delivered",
+    "response": "250 2.0.0 OK",
+    "category": ["welcome"],
+    "sg_event_id": "rbtnWrG1DVDGGGFHFdun0A",
+    "sg_message_id": "142d9f3f351f2dad77c8.messagepit",
+    "notification_id": "<value from custom_args>"
   }
 ]
 ```
+
+Every key in `custom_args` is flattened onto each event as a top-level field, exactly as real SendGrid does — so `notification_id` keeps working unchanged. `categories` from the v3 payload arrive as `category`.
+
+Event-specific fields match the real API: `response` on `delivered`/`deferred`, `reason` + `status` + `type` + `bounce_classification` on `bounce`, `reason` + `status` on `dropped`, `useragent` + `ip` on `open`/`click`, and `url` + `url_offset` on `click`.
+
+#### Delivery scenarios
+
+The default lifecycle is `processed → delivered`. To exercise the failure and engagement branches, select a scenario either with a `mp_scenario` custom arg or by addressing the recipient with a matching local part or plus-tag (`bounce@example.com`, `user+bounce@example.com`). An explicit `mp_scenario` wins over the address.
+
+| Scenario | Event sequence |
+|---|---|
+| `delivered` (default) | `processed` → `delivered` |
+| `open` | `processed` → `delivered` → `open` |
+| `click` | `processed` → `delivered` → `open` → `click` |
+| `deferred` | `processed` → `deferred` → `delivered` |
+| `bounce` | `processed` → `bounce` (`type: bounce`, 5.1.1) |
+| `blocked` | `processed` → `bounce` (`type: blocked`, 5.7.1) |
+| `dropped` | `processed` → `dropped` |
+| `spamreport` | `processed` → `delivered` → `spamreport` |
+| `unsubscribe` | `processed` → `delivered` → `unsubscribe` |
+| `group_unsubscribe` | `processed` → `delivered` → `group_unsubscribe` |
+| `group_resubscribe` | `processed` → `delivered` → `group_resubscribe` |
+
+```json
+{
+  "personalizations": [{ "to": [{ "email": "user@example.com" }] }],
+  "custom_args": { "notification_id": "42", "mp_scenario": "bounce" }
+}
+```
+
+Set `--email-webhook-event-delay` (`MP_EMAIL_WEBHOOK_EVENT_DELAY`, e.g. `2s`) to space the events out. The default is `0`.
 
 Webhooks are signed using ECDSA P-256 / SHA-256, with the signature and timestamp in the same headers real SendGrid uses:
 
@@ -142,7 +232,7 @@ If `MP_EMAIL_WEBHOOK_SIGNING_KEY` is empty and `MP_EMAIL_WEBHOOK_URL` is set, Me
 
 #### SMTP vs. SendGrid v3
 
-The email webhook only fires for messages received via the `/v3/mail/send` endpoint, since only that path carries `custom_args`. Emails delivered over SMTP do not carry `custom_args` and will not trigger the webhook.
+Events fire for **both** paths, mirroring SendGrid's own SMTP relay. Messages sent over SMTP simply have no `custom_args` to flatten onto the events unless you set them yourself: MessagePit reads SendGrid's `X-SMTPAPI` header (`{"category":[...],"unique_args":{...}}`), which the v3 handler also uses internally to carry that metadata through storage. Scenario selection by recipient address works over SMTP too, or set `X-MessagePit-Scenario` directly.
 
 ## Building
 
@@ -167,12 +257,14 @@ All flags can also be set via environment variables (e.g. `--smtp` → `MP_SMTP_
 | `--sendgrid-api-key` | `MP_SENDGRID_API_KEY` | | Expected Bearer token for `/v3/mail/send` (skipped when empty) |
 | `--twilio` | `MP_TWILIO_BIND_ADDR` | `[::]:8200` | Twilio SMS ingest bind address |
 | `--twilio-auth-token` | `MP_TWILIO_AUTH_TOKEN` | | Twilio auth token — validates Basic Auth on inbound SMS; signs outgoing delivery callbacks |
-| `--twilio-webhook-url` | `MP_TWILIO_WEBHOOK_URL` | | URL to POST SMS delivery callbacks to (fallback when no per-request `StatusCallback`) |
+| `--twilio-webhook-url` | `MP_TWILIO_WEBHOOK_URL` | | URL to POST SMS status callbacks to (fallback when no per-request `StatusCallback`) |
+| `--twilio-callback-delay` | `MP_TWILIO_CALLBACK_DELAY` | `0s` | Delay between callbacks in the `queued`/`sent`/`delivered` progression |
 | `--webhook` | `MP_WEBHOOK_BIND_ADDR` | `[::]:8300` | HTTP webhook capture bind address (empty to disable) |
 | `--listen` | `MP_UI_BIND_ADDR` | `0.0.0.0:8025` | HTTP UI/API bind address |
 | `--db` | `MP_DATABASE` | *(in-memory)* | SQLite database file path |
 | `--email-webhook-url` | `MP_EMAIL_WEBHOOK_URL` | | URL to POST email delivery event webhooks to |
 | `--email-webhook-signing-key` | `MP_EMAIL_WEBHOOK_SIGNING_KEY` | | Base64-encoded SEC1 DER ECDSA P-256 private key (auto-generated when empty) |
+| `--email-webhook-event-delay` | `MP_EMAIL_WEBHOOK_EVENT_DELAY` | `0s` | Delay between events in the email delivery lifecycle |
 
 Run `messagepit --help` for the full list.
 
@@ -327,7 +419,7 @@ end
 
 ### Email delivery tracking
 
-Set `custom_args: { notification_id: record.id.to_s }` in your `mail()` call. MessagePit extracts this value and includes it in the webhook payload so your app can update the delivery status on the corresponding record.
+Set `custom_args: { notification_id: record.id.to_s }` in your `mail()` call. MessagePit flattens every custom arg onto each event in the lifecycle so your app can update the delivery status on the corresponding record. Add `mp_scenario` to drive a bounce, deferral, or open/click instead of a plain delivery.
 
 ```ruby
 mail(
@@ -349,9 +441,14 @@ class SmsWebhookController < ApplicationController
 
   before_action :verify_twilio_signature
 
+  # Called once per state change: queued, sent, then delivered — or failed /
+  # undelivered with an ErrorCode.
   def update
     notification = Notification.find_by(sms_id: params[:MessageSid])
-    notification&.update_columns(sms_delivery_status: params[:MessageStatus])
+    notification&.update_columns(
+      sms_delivery_status: params[:MessageStatus],
+      sms_error_code:      params[:ErrorCode]
+    )
     head :ok
   end
 
@@ -375,11 +472,18 @@ class EmailWebhookController < ApplicationController
 
   before_action :verify_sendgrid_signature
 
+  # Every event in the lifecycle arrives here — processed, delivered, bounce,
+  # dropped, deferred, open, click — so record the status rather than matching
+  # on a single event type.
+  TERMINAL_EVENTS = %w[delivered bounce dropped spamreport].freeze
+
   def update
     (params["_json"] || []).each do |event|
-      next unless event["event"] == "delivered" && event["notification_id"].present?
+      next unless TERMINAL_EVENTS.include?(event["event"])
+      next if event["notification_id"].blank?
+
       Notification.find_by(id: event["notification_id"])
-                  &.update_columns(email_delivery_status: "delivered")
+                  &.update_columns(email_delivery_status: event["event"])
     end
     head :ok
   end

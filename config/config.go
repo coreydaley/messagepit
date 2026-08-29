@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/axllent/ghru/v2"
 	"github.com/coreydaley/messagepit/internal/auth"
@@ -239,8 +240,12 @@ var (
 	WebhookURL string
 
 	// TwilioWebhookURL is the URL to POST Twilio-style status callbacks after capturing an SMS.
-	// When set, MessagePit fires a delivery callback signed with TwilioAuthToken (if set).
+	// When set, MessagePit fires the status progression signed with TwilioAuthToken (if set).
 	TwilioWebhookURL string
+
+	// TwilioCallbackDelay is the pause between successive SMS status callbacks
+	// (queued → sent → delivered). Zero fires them back to back.
+	TwilioCallbackDelay time.Duration
 
 	// EmailWebhookURL is the URL to POST SendGrid-style event webhooks after capturing an email.
 	// When set, MessagePit fires a "delivered" event signed with the ECDSA key.
@@ -250,6 +255,11 @@ var (
 	// sign email event webhook payloads. If empty and EmailWebhookURL is set, a one-time key
 	// pair is generated at startup and the public key is logged.
 	EmailWebhookSigningKey string
+
+	// EmailWebhookEventDelay is the pause between successive events in an email
+	// delivery lifecycle (processed → delivered → open …). Zero fires them
+	// back to back, which keeps ordering but removes the wall-clock realism.
+	EmailWebhookEventDelay time.Duration
 
 	// emailWebhookKey is the parsed or generated ECDSA private key, set during VerifyConfig.
 	emailWebhookKey *ecdsa.PrivateKey
@@ -281,6 +291,13 @@ var (
 // Returns nil if no email webhook URL is configured.
 func EmailWebhookPrivateKey() *ecdsa.PrivateKey {
 	return emailWebhookKey
+}
+
+// SetEmailWebhookPrivateKey sets the key used to sign email event webhook payloads.
+// VerifyConfig calls this at startup; tests use it to configure a key without
+// running the whole configuration validation pass.
+func SetEmailWebhookPrivateKey(key *ecdsa.PrivateKey) {
+	emailWebhookKey = key
 }
 
 // AutoTag struct for auto-tagging
@@ -623,6 +640,14 @@ func VerifyConfig() error {
 
 	if TwilioWebhookURL != "" && !isValidURL(TwilioWebhookURL) {
 		return fmt.Errorf("Twilio webhook URL does not appear to be a valid URL (%s)", TwilioWebhookURL)
+	}
+
+	if TwilioCallbackDelay < 0 {
+		return fmt.Errorf("Twilio callback delay cannot be negative (%s)", TwilioCallbackDelay)
+	}
+
+	if EmailWebhookEventDelay < 0 {
+		return fmt.Errorf("email webhook event delay cannot be negative (%s)", EmailWebhookEventDelay)
 	}
 
 	if EmailWebhookURL != "" {

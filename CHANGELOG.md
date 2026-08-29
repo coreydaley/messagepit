@@ -15,11 +15,25 @@ Notable MessagePit changes are listed here. Changes inherited from Mailpit upstr
 - **`MP_SMS_WEBHOOK_URL` renamed to `MP_TWILIO_WEBHOOK_URL`** — MessagePit exits non-zero if the old env var is detected
 
 #### Feature
+- **Twilio SMS status progression** — status callbacks now replay `queued` → `sent` → `delivered` (one signed POST per state change) instead of a single `delivered` callback. Bodies carry the full Twilio field set: `MessageSid`/`SmsSid`, `MessageStatus`/`SmsStatus`, `To`, `From`, `AccountSid`, `ApiVersion`, plus `ErrorCode`/`ErrorMessage` on failures
+- Honour Twilio's reserved magic test numbers (`+15005550001`–`+15005550009`) with the real API error codes (21211, 21212, 21408, 21606, 21610, 21611, 21612, 21614); rejected messages are neither stored nor announced by callback
+- Add MessagePit magic numbers `+15005550010`–`+15005550014` for the delivery-failure branches: `failed` (30008), `undelivered` (30003 / 30005 / 30006), and a progression that stalls at `sent`
+- Add `--twilio-callback-delay` / `MP_TWILIO_CALLBACK_DELAY` to space out the status progression
+- **Full SendGrid event lifecycle** — the email event webhook now replays `processed` → `delivered` (and the failure/engagement branches) instead of a single `delivered` event, with the real field set: `sg_event_id`, `sg_message_id`, `smtp-id`, `category`, `response`, `reason`, `status`, `type`, `bounce_classification`, `useragent`, `ip`, `url`, `url_offset`
+- Select a delivery scenario with a `mp_scenario` custom arg or a recipient address tag (`bounce@`, `user+dropped@`): `delivered`, `open`, `click`, `deferred`, `bounce`, `blocked`, `dropped`, `spamreport`, `unsubscribe`, `group_unsubscribe`, `group_resubscribe`
+- Parse `categories` from the SendGrid v3 payload and emit them as `category` on every event
+- Flatten every `custom_args` key onto each event as a top-level field, matching real SendGrid (previously only `notification_id` was carried)
+- Carry categories and custom args through storage on SendGrid's own `X-SMTPAPI` header, so SMTP-delivered mail can supply them too
+- Add `--email-webhook-event-delay` / `MP_EMAIL_WEBHOOK_EVENT_DELAY` to space out the event lifecycle
 - Add Mailtrap Email Sending API stub (`POST /api/send`, port 8027) — point Mailtrap SDK clients at `http://localhost:8027` for local development
 - Add `--mailtrap` flag and `MP_MAILTRAP_BIND_ADDR` env var to configure the Mailtrap listener address (defaults to `127.0.0.1:8027`)
 - Add `--mailtrap-api-key` flag and `MP_MAILTRAP_API_KEY` env var for Bearer token authentication on the Mailtrap stub
 
+#### Change
+- The email event webhook now fires for **every** captured message, not only those carrying a `notification_id` custom arg — matching real SendGrid, which fires for everything it accepts over both the v3 API and its SMTP relay. Handlers that assumed a `notification_id` was always present must guard for its absence
+
 #### Security
+- Sanitize CR/LF in the `notification_id` and `mp_scenario` custom args before writing them as MIME headers
 - Add 10 MiB body-size cap to Mailtrap and SendGrid handlers (prevents request body DoS)
 - Use constant-time comparison for Bearer token validation in Mailtrap and SendGrid handlers
 - Validate all email addresses in Mailtrap handler; validate `from` address in SendGrid handler

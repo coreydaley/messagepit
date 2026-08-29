@@ -16,6 +16,7 @@ import (
 	"github.com/coreydaley/messagepit/config"
 	"github.com/coreydaley/messagepit/internal/logger"
 	"github.com/coreydaley/messagepit/internal/mailadapter"
+	"github.com/coreydaley/messagepit/internal/mailevents"
 	"github.com/coreydaley/messagepit/internal/storage"
 	"github.com/lithammer/shortuuid/v4"
 )
@@ -44,6 +45,7 @@ type mailSendRequest struct {
 	Personalizations []personalization `json:"personalizations"`
 	Content          []content         `json:"content"`
 	CustomArgs       map[string]string `json:"custom_args"`
+	Categories       []string          `json:"categories"`
 	Headers          map[string]string `json:"headers"`
 }
 
@@ -61,8 +63,10 @@ func jsonError(w http.ResponseWriter, status int, msg string) {
 }
 
 // CreateMessage handles POST /v3/mail/send (SendGrid v3 Mail Send API).
-// It stores the email in the MessagePit mailbox and fires the email delivery
-// webhook if an X-Notification-Id is found in the message custom_args.
+// It stores the email in the MessagePit mailbox; the storage layer then replays
+// the SendGrid event lifecycle to the configured event webhook. Categories and
+// custom_args are handed over via the X-SMTPAPI header, the same mechanism real
+// SendGrid uses to carry them across an SMTP hop.
 func CreateMessage(w http.ResponseWriter, r *http.Request) {
 	mailadapter.LimitBody(w, r)
 
@@ -127,10 +131,8 @@ func CreateMessage(w http.ResponseWriter, r *http.Request) {
 		for k, v := range p.CustomArgs {
 			merged[k] = v
 		}
-		notificationID := merged["notification_id"]
-
 		for _, to := range p.To {
-			mimeBytes := buildMIME(&msg, &p, to, notificationID)
+			mimeBytes := buildMIME(&msg, &p, to, merged)
 			id, err := storage.Store(&mimeBytes, &username)
 			if err != nil {
 				logger.Log().Errorf("[sendgrid] failed to store email for %s: %s", to.Email, err)
@@ -145,8 +147,10 @@ func CreateMessage(w http.ResponseWriter, r *http.Request) {
 }
 
 // buildMIME constructs a minimal RFC 2822 MIME message from a v3 API payload.
-// The X-Notification-Id header is set so the existing email webhook code picks it up.
-func buildMIME(msg *mailSendRequest, p *personalization, to address, notificationID string) []byte {
+// Categories and custom_args are serialised into X-SMTPAPI so the storage layer
+// can attach them to the event webhook; X-Notification-Id is still emitted for
+// backwards compatibility with existing integrations.
+func buildMIME(msg *mailSendRequest, p *personalization, to address, customArgs map[string]string) []byte {
 	var buf bytes.Buffer
 
 	fromStr, _ := mailadapter.FormatAddress(msg.From.Email, msg.From.Name)
@@ -171,8 +175,16 @@ func buildMIME(msg *mailSendRequest, p *personalization, to address, notificatio
 		fmt.Fprintf(&buf, "%s: %s\r\n", k, mailadapter.SanitizeHeaderValue(v))
 	}
 
-	if notificationID != "" {
-		fmt.Fprintf(&buf, "X-Notification-Id: %s\r\n", notificationID)
+	if notificationID := customArgs["notification_id"]; notificationID != "" {
+		fmt.Fprintf(&buf, "X-Notification-Id: %s\r\n", mailadapter.SanitizeHeaderValue(notificationID))
+	}
+
+	if scenario := customArgs["mp_scenario"]; scenario != "" {
+		fmt.Fprintf(&buf, "%s: %s\r\n", mailevents.ScenarioHeader, mailadapter.SanitizeHeaderValue(scenario))
+	}
+
+	if smtpAPI := mailevents.BuildSMTPAPI(msg.Categories, customArgs); smtpAPI != "" {
+		fmt.Fprintf(&buf, "%s: %s\r\n", mailevents.SMTPAPIHeader, smtpAPI)
 	}
 
 	switch len(msg.Content) {

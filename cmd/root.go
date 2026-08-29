@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/coreydaley/messagepit/config"
 	"github.com/coreydaley/messagepit/internal/auth"
@@ -121,7 +122,8 @@ func init() {
 	// Twilio SMS ingest server
 	rootCmd.Flags().StringVar(&config.TwilioListen, "twilio", config.TwilioListen, "Twilio SMS ingest bind interface and port")
 	rootCmd.Flags().StringVar(&config.TwilioAuthToken, "twilio-auth-token", config.TwilioAuthToken, "Twilio auth token to validate X-Twilio-Signature on incoming SMS webhooks")
-	rootCmd.Flags().StringVar(&config.TwilioWebhookURL, "twilio-webhook-url", config.TwilioWebhookURL, "POST Twilio-style delivery callback to this URL after capturing SMS")
+	rootCmd.Flags().StringVar(&config.TwilioWebhookURL, "twilio-webhook-url", config.TwilioWebhookURL, "POST Twilio-style status callbacks to this URL after capturing SMS")
+	rootCmd.Flags().DurationVar(&config.TwilioCallbackDelay, "twilio-callback-delay", config.TwilioCallbackDelay, "Delay between SMS status callbacks in the queued/sent/delivered progression")
 
 	// SendGrid Email Sending API stub
 	rootCmd.Flags().StringVar(&config.SendGridListen, "sendgrid", config.SendGridListen, "SendGrid v3 Mail Send API bind interface and port (empty to disable)")
@@ -131,6 +133,7 @@ func init() {
 	rootCmd.Flags().StringVar(&config.WebhookCaptureListen, "webhook", config.WebhookCaptureListen, "HTTP webhook capture bind interface and port (empty to disable)")
 	rootCmd.Flags().StringVar(&config.EmailWebhookURL, "email-webhook-url", config.EmailWebhookURL, "POST SendGrid-style event webhook to this URL after capturing email")
 	rootCmd.Flags().StringVar(&config.EmailWebhookSigningKey, "email-webhook-signing-key", config.EmailWebhookSigningKey, "Base64-encoded SEC1 DER ECDSA P-256 private key for signing email webhook payloads (auto-generated if empty)")
+	rootCmd.Flags().DurationVar(&config.EmailWebhookEventDelay, "email-webhook-event-delay", config.EmailWebhookEventDelay, "Delay between events in the email delivery lifecycle (processed/delivered/open...)")
 
 	// SMTP server
 	rootCmd.Flags().StringVarP(&config.SMTPListen, "smtp", "s", config.SMTPListen, "SMTP bind interface and port")
@@ -305,6 +308,14 @@ func initConfigFromEnv() {
 	if len(os.Getenv("MP_TWILIO_WEBHOOK_URL")) > 0 {
 		config.TwilioWebhookURL = os.Getenv("MP_TWILIO_WEBHOOK_URL")
 	}
+	if v := os.Getenv("MP_TWILIO_CALLBACK_DELAY"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			logger.Log().Errorf("[env] MP_TWILIO_CALLBACK_DELAY is not a valid duration: %s", v)
+			os.Exit(1)
+		}
+		config.TwilioCallbackDelay = d
+	}
 
 	// SendGrid Email Sending API stub
 	if len(os.Getenv("MP_SENDGRID_BIND_ADDR")) > 0 {
@@ -323,6 +334,14 @@ func initConfigFromEnv() {
 	}
 	if len(os.Getenv("MP_EMAIL_WEBHOOK_SIGNING_KEY")) > 0 {
 		config.EmailWebhookSigningKey = os.Getenv("MP_EMAIL_WEBHOOK_SIGNING_KEY")
+	}
+	if v := os.Getenv("MP_EMAIL_WEBHOOK_EVENT_DELAY"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			logger.Log().Errorf("[env] MP_EMAIL_WEBHOOK_EVENT_DELAY is not a valid duration: %s", v)
+			os.Exit(1)
+		}
+		config.EmailWebhookEventDelay = d
 	}
 
 	// SMTP server
