@@ -27,7 +27,8 @@ MessagePit is a fork of [Mailpit](https://github.com/axllent/mailpit) extended w
 
 ```bash
 # Docker
-docker run -p 1025:1025 -p 8025:8025 -p 8100:8100 -p 8200:8200 -p 8300:8300 ghcr.io/coreydaley/messagepit
+docker run -p 1025:1025 -p 8025:8025 -p 8100:8100 -p 8200:8200 -p 8300:8300 \
+  -e MP_SENDGRID_BIND_ADDR=0.0.0.0:8100 ghcr.io/coreydaley/messagepit
 
 # From source
 make run
@@ -117,7 +118,7 @@ http://localhost:8300/any/path/you/like
 
 Any HTTP method works: `POST`, `GET`, `PUT`, `PATCH`, `DELETE`. The full request — method, path, headers, body, source IP — is captured and displayed in real time via WebSocket.
 
-The capture server is enabled by default. Set `--webhook ""` (or `MP_WEBHOOK_BIND_ADDR=""`) to disable it.
+The capture server is enabled by default. Pass `--webhook ""` to disable it. (Setting `MP_WEBHOOK_BIND_ADDR=""` does not disable it — an empty environment variable is ignored and the default is used.)
 
 ### Webhook capture API
 
@@ -141,7 +142,7 @@ Content-Type: application/json
 
 Point your application's SendGrid SDK at the stub by setting the API base URL to `http://localhost:8100`. The endpoint accepts the standard SendGrid v3 JSON payload (`personalizations`, `from`, `subject`, `content`, `custom_args`) and stores each message in the MessagePit mailbox. Authentication is skipped when `MP_SENDGRID_API_KEY` is empty.
 
-The SendGrid server defaults to `127.0.0.1:8100` (loopback only). Set `MP_SENDGRID_BIND_ADDR=0.0.0.0:8100` to expose it on all interfaces (e.g. inside Docker). Set `MP_SENDGRID_BIND_ADDR=""` to disable it entirely.
+The SendGrid server defaults to `127.0.0.1:8100` (loopback only). Set `MP_SENDGRID_BIND_ADDR=0.0.0.0:8100` to expose it on all interfaces (e.g. inside Docker). Pass `--sendgrid ""` to disable it entirely (an empty `MP_SENDGRID_BIND_ADDR` is ignored).
 
 ### Email event webhooks
 
@@ -216,16 +217,23 @@ The payload that is signed is `timestamp + body` (timestamp string concatenated 
 Provide a stable key pair so the public key doesn't change across restarts:
 
 ```bash
-# Generate private key (SEC1 DER, base64) — set as MP_EMAIL_WEBHOOK_SIGNING_KEY
-openssl ecparam -name prime256v1 -genkey -noout \
+# Generate the private key once (SEC1 DER, base64) — set as MP_EMAIL_WEBHOOK_SIGNING_KEY
+export MP_EMAIL_WEBHOOK_SIGNING_KEY="$(openssl ecparam -name prime256v1 -genkey -noout \
   | openssl ec -outform DER 2>/dev/null \
-  | base64
+  | base64 | tr -d '\n')"
 
-# Derive the matching public key (PKIX DER, base64) — set as SENDGRID_WEBHOOK_PUBLIC_KEY in your app
-openssl ecparam -name prime256v1 -genkey -noout \
-  | openssl ec -outform DER 2>/dev/null \
+# Derive the matching public key from THAT private key (PKIX DER, base64)
+# — set as SENDGRID_WEBHOOK_PUBLIC_KEY in your app
+printf '%s' "$MP_EMAIL_WEBHOOK_SIGNING_KEY" | base64 -d \
   | openssl ec -inform DER -pubout -outform DER 2>/dev/null \
-  | base64
+  | base64 | tr -d '\n'
+```
+
+The public key must be derived from the same private key — running the generate step twice gives two unrelated keys and every signature check fails.
+
+```bash
+# (optional) sanity-check the private key
+printf '%s' "$MP_EMAIL_WEBHOOK_SIGNING_KEY" | base64 -d | openssl ec -inform DER -noout -check
 ```
 
 If `MP_EMAIL_WEBHOOK_SIGNING_KEY` is empty and `MP_EMAIL_WEBHOOK_URL` is set, MessagePit auto-generates a key pair at startup and logs the public key — useful for one-off testing but not stable across restarts.
@@ -253,13 +261,13 @@ All flags can also be set via environment variables (e.g. `--smtp` → `MP_SMTP_
 | Flag | Env var | Default | Description |
 |------|---------|---------|-------------|
 | `--smtp` | `MP_SMTP_BIND_ADDR` | `0.0.0.0:1025` | SMTP bind address |
-| `--sendgrid` | `MP_SENDGRID_BIND_ADDR` | `127.0.0.1:8100` | SendGrid v3 Mail Send API bind address (empty to disable) |
+| `--sendgrid` | `MP_SENDGRID_BIND_ADDR` | `127.0.0.1:8100` | SendGrid v3 Mail Send API bind address (`--sendgrid ""` to disable) |
 | `--sendgrid-api-key` | `MP_SENDGRID_API_KEY` | | Expected Bearer token for `/v3/mail/send` (skipped when empty) |
 | `--twilio` | `MP_TWILIO_BIND_ADDR` | `[::]:8200` | Twilio SMS ingest bind address |
 | `--twilio-auth-token` | `MP_TWILIO_AUTH_TOKEN` | | Twilio auth token — validates Basic Auth on inbound SMS; signs outgoing delivery callbacks |
 | `--twilio-webhook-url` | `MP_TWILIO_WEBHOOK_URL` | | URL to POST SMS status callbacks to (fallback when no per-request `StatusCallback`) |
 | `--twilio-callback-delay` | `MP_TWILIO_CALLBACK_DELAY` | `0s` | Delay between callbacks in the `queued`/`sent`/`delivered` progression |
-| `--webhook` | `MP_WEBHOOK_BIND_ADDR` | `[::]:8300` | HTTP webhook capture bind address (empty to disable) |
+| `--webhook` | `MP_WEBHOOK_BIND_ADDR` | `[::]:8300` | HTTP webhook capture bind address (`--webhook ""` to disable) |
 | `--listen` | `MP_UI_BIND_ADDR` | `0.0.0.0:8025` | HTTP UI/API bind address |
 | `--db` | `MP_DATABASE` | *(in-memory)* | SQLite database file path |
 | `--email-webhook-url` | `MP_EMAIL_WEBHOOK_URL` | | URL to POST email delivery event webhooks to |
@@ -284,7 +292,7 @@ SMS endpoints:
 
 ## Docker
 
-Images are published to the GitHub Container Registry on every push to `main` and on tagged releases:
+Images are published to the GitHub Container Registry for each tagged release (`v*`); `latest` is the most recent release. Features listed under "Unreleased" in the [CHANGELOG](CHANGELOG.md) are only on `main` — build from source to try them.
 
 ```bash
 docker pull ghcr.io/coreydaley/messagepit:latest

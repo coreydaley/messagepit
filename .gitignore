@@ -8,3 +8,6 @@
 *.old
 *.db
 !internal/storage/schemas/*.sql
+
+# Claude Code per-machine settings (local paths, personal permissions)
+.claude/settings.local.json
