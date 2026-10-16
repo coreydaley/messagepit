@@ -4,6 +4,8 @@ An email **and SMS** testing tool for developers. Send test emails and SMS messa
 
 MessagePit is a fork of [Mailpit](https://github.com/axllent/mailpit) extended with a Twilio-compatible SMS ingest endpoint, a SendGrid v3 Mail Send API stub, SMS/email delivery status callbacks, an SMS inbox UI, and a dedicated SMS ingest server.
 
+![MessagePit web UI with Email, SMS and Webhooks tabs and an inbox of captured test emails](server/ui-src/screenshot.png)
+
 ## Features
 
 - **Email**: SMTP server, SendGrid v3 API stub, web UI, REST API, WebSocket live updates, search, tagging, POP3 server
